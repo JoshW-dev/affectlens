@@ -1,7 +1,7 @@
 """Command-line interface for the feature-extraction pipeline.
 
     affectlens inventory --clips DIR
-    affectlens extract   --clips DIR --ratings PATH --out DIR
+    affectlens extract   --clips DIR --out DIR [--ratings PATH]
     affectlens baseline  --clips DIR --ratings PATH
     affectlens encode    --features FEATURES.csv --signal SIGNAL.csv
     affectlens selftest
@@ -31,14 +31,21 @@ def _cmd_inventory(args) -> int:
 
 def _cmd_extract(args) -> int:
     config = ExtractionConfig(visual=not args.no_visual, audio=not args.no_audio)
-    per_clip, _ = pipeline.run(
-        args.clips, args.ratings, config=config, use_semantic=not args.no_semantic
-    )
+    if args.ratings:
+        per_clip, _ = pipeline.run(
+            args.clips, args.ratings, config=config, use_semantic=not args.no_semantic
+        )
+    else:
+        # No ratings: bin each clip on its own duration-derived grid.
+        per_clip = pipeline.extract_all(
+            args.clips, config=config, use_semantic=not args.no_semantic
+        )
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     for cf in per_clip:
         cf.X.to_csv(out / f"{_safe(cf.clip)}__features.csv")
-        cf.Y.to_csv(out / f"{_safe(cf.clip)}__ratings.csv")
+        if cf.Y is not None:
+            cf.Y.to_csv(out / f"{_safe(cf.clip)}__ratings.csv")
     print(f"wrote features for {len(per_clip)} clip(s) to {out}")
     return 0
 
@@ -111,7 +118,9 @@ def build_parser() -> argparse.ArgumentParser:
     for name, func, needs_out in (("extract", _cmd_extract, True), ("baseline", _cmd_baseline, False)):
         sp = sub.add_parser(name)
         sp.add_argument("--clips", required=True)
-        sp.add_argument("--ratings", required=True)
+        # Ratings are what `baseline` scores against; `extract` can run without
+        # them on a duration-derived grid (the `encode` workflow).
+        sp.add_argument("--ratings", required=not needs_out)
         if needs_out:
             sp.add_argument("--out", required=True)
         sp.add_argument("--no-visual", action="store_true")

@@ -24,3 +24,9 @@ All notable changes to this project are documented here. The format is based on
   continuous signal with lag scanning, plus a cross-validated ridge encoding
   model reporting held-out r and per-feature weights.
 - `affectlens selftest`: generates synthetic clips and runs the full pipeline.
+- Ratings-free extraction: `affectlens extract` works without `--ratings`,
+  binning features on a duration-derived grid (`pipeline.extract_all`) — the
+  workflow for relating features to an external signal with `encode`.
+- Sample-clip manifest (`examples/samples.json`) and fetcher
+  (`scripts/fetch_samples.py`): real public-domain / CC test clips are linked
+  by URL and downloaded locally, never committed.

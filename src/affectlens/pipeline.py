@@ -25,7 +25,7 @@ from .ratings import RatingSchema
 class ClipFeatures:
     clip: str
     X: pd.DataFrame  # bins x features, indexed by t_start
-    Y: pd.DataFrame  # bins x rated features, indexed by t_start
+    Y: pd.DataFrame | None = None  # bins x rated features, indexed by t_start
 
 
 def extract_clip_features(
@@ -42,6 +42,33 @@ def extract_clip_features(
         if not sem.empty:
             streams["semantic"] = sem
     return align.build_design_matrix(streams, rating_times, config)
+
+
+def extract_all(
+    clips_dir: str | Path,
+    config: ExtractionConfig | None = None,
+    use_semantic: bool = True,
+) -> list[ClipFeatures]:
+    """Extract features for every clip in a directory, with no ratings.
+
+    The time grid is derived from each clip's duration at
+    ``config.rating_interval_s`` spacing. Use this when the goal is relating
+    features to an external signal (``encode``) rather than to ratings.
+    """
+    config = config or ExtractionConfig()
+    inv = clips_mod.inventory(Path(clips_dir))
+    per_clip: list[ClipFeatures] = []
+    for info in inv:
+        if info.error is not None or not info.duration_s:
+            continue
+        interval = config.rating_interval_s
+        n_bins = max(1, int(info.duration_s // interval))
+        times = np.arange(n_bins) * interval
+        X = extract_clip_features(info.path, times, config, use_semantic)
+        per_clip.append(ClipFeatures(clip=Path(info.path).stem, X=X))
+    if not per_clip:
+        raise RuntimeError(f"no readable clips found in {clips_dir}")
+    return per_clip
 
 
 def run(

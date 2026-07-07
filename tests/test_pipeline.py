@@ -109,6 +109,20 @@ def test_end_to_end_pipeline_recovers_signal():
     assert result.mean_r > 0.3, f"mean_r too low: {result.mean_r}"
 
 
+def test_extract_all_without_ratings():
+    from affectlens import pipeline
+
+    with build_synthetic_dataset(n_clips=2) as (clips_dir, _ratings_csv):
+        per_clip = pipeline.extract_all(clips_dir, config=ExtractionConfig())
+    assert len(per_clip) == 2
+    for cf in per_clip:
+        assert cf.Y is None
+        # 20 s clips on the default 4.5 s grid -> 4 full bins.
+        assert len(cf.X) >= 4
+        assert any(c.startswith("visual__") for c in cf.X.columns)
+        assert any(c.startswith("audio__") for c in cf.X.columns)
+
+
 if __name__ == "__main__":
     import inspect
     import tempfile

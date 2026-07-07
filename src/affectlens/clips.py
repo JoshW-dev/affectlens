@@ -121,7 +121,10 @@ def inventory(clips_dir: str | Path) -> list[ClipInfo]:
     files = sorted(
         p
         for p in clips_dir.rglob("*")
-        if p.is_file() and p.suffix.lower() in MEDIA_EXTENSIONS
+        if p.is_file()
+        and p.suffix.lower() in MEDIA_EXTENSIONS
+        # Skip hidden files/dirs (scratch dirs, .venv, editor droppings).
+        and not any(part.startswith(".") for part in p.relative_to(clips_dir).parts)
     )
     return [probe_clip(p) for p in files]
 

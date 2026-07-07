@@ -54,8 +54,10 @@ affectlens inventory --clips data/clips
 # 2. Reproduce human ratings from the clips (leave-one-clip-out CV):
 affectlens baseline --clips data/clips --ratings data/ratings.csv
 
-# 3. Write the aligned feature matrices to disk:
-affectlens extract --clips data/clips --ratings data/ratings.csv --out out/
+# 3. Write the aligned feature matrices to disk. --ratings is optional: with
+#    it, features are binned on the rating grid; without it, on a
+#    duration-derived grid (all you need for `encode`):
+affectlens extract --clips data/clips --out out/
 
 # 4. Relate those features to a recorded signal (e.g. a brain channel):
 affectlens encode --features out/clip_01__features.csv \

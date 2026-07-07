@@ -1,3 +1,20 @@
 {
-  "clips": []
+  "clips": [
+    {
+      "name": "elephants_dream",
+      "url": "https://archive.org/download/ElephantsDream/ed_1024_512kb.mp4"
+    },
+    {
+      "name": "city_short",
+      "url": "https://download.samplelib.com/mp4/sample-20s.mp4"
+    },
+    {
+      "name": "nature_short",
+      "url": "https://download.samplelib.com/mp4/sample-30s.mp4"
+    },
+    {
+      "name": "music_only",
+      "url": "https://download.samplelib.com/mp3/sample-15s.mp3"
+    }
+  ]
 }
