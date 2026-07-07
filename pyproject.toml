@@ -1,0 +1,65 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "affectlens"
+version = "0.1.0"
+description = "Extract time-varying visual, audio, and semantic features from video/audio stimuli and relate them to human ratings or recorded signals."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Joshua Wade" }]
+keywords = [
+    "feature-extraction",
+    "video",
+    "audio",
+    "affective-computing",
+    "stimuli",
+    "encoding-models",
+    "neuroimaging",
+    "psychophysics",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Multimedia :: Video",
+    "Topic :: Multimedia :: Sound/Audio :: Analysis",
+]
+dependencies = [
+    "numpy>=1.24",
+    "pandas>=2.0",
+    "scipy>=1.10",
+    "scikit-learn>=1.3",
+    "opencv-python-headless>=4.8",
+    "imageio>=2.31",
+    "imageio-ffmpeg>=0.4.9",
+    "openpyxl>=3.1",
+]
+
+[project.optional-dependencies]
+# Real high-level semantic path (offline hashing fallback needs none of these).
+semantic = ["sentence-transformers>=2.2"]
+asr = ["faster-whisper>=1.0"]
+dev = ["pytest>=7.0"]
+
+[project.urls]
+Homepage = "https://github.com/JoshW-dev/affectlens"
+Repository = "https://github.com/JoshW-dev/affectlens"
+Issues = "https://github.com/JoshW-dev/affectlens/issues"
+
+[project.scripts]
+affectlens = "affectlens.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

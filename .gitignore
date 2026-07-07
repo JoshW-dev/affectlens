@@ -1,0 +1,22 @@
+# Bring-your-own data: never commit clips, ratings, or signals.
+data/
+out/
+examples/samples/
+*.mp4
+*.mov
+*.mkv
+*.wav
+*.mp3
+*.flac
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.pytest_cache/
+.venv/
+venv/
+.env
