@@ -1,8 +1,9 @@
 """Baseline model: reproduce human ratings from extracted features.
 
-The core proof point: clips in, ratings out, scored against the human labels as
-ground truth. We fit a regularized linear model (RidgeCV) per rated feature and
-report cross-validated agreement.
+The baseline workflow: clips in, ratings out, scored against whatever human
+labels you supply. We fit a regularized linear model (RidgeCV) per rated feature
+and report cross-validated agreement -- how much of a rating the low-level
+features can account for, and a reference a richer model has to beat.
 
 Scoring is cross-validated so we measure generalization, not fit. When the data
 spans multiple clips we use leave-one-clip-out folds -- the honest test of

@@ -12,7 +12,8 @@ fMRI ROI or vertex time series, pupil size, heart rate...). Two views:
                       several seconds after the event); scanning lags finds it.
   encode_signal    -- a cross-validated ridge *encoding model* predicting the
                       signal from all features jointly, reporting held-out r and
-                      the per-feature weights (which features drive the signal).
+                      the per-feature weights (which features the model leans on;
+                      an importance ranking, not a clean causal attribution).
 
 The signal is resampled onto the same bins as the feature matrix X, so both
 share one time base. Lags are expressed in bins; at a 4.5 s bin size, a lag of 1
@@ -112,11 +113,21 @@ def encode_signal(
     lag_bins: int = 0,
     alphas: tuple[float, ...] = (0.1, 1.0, 10.0, 100.0, 1000.0),
     n_splits: int = 5,
+    shuffle: bool = False,
 ) -> EncodingResult:
     """Cross-validated ridge encoding model: predict the signal from all features.
 
     Reports held-out Pearson r / R2 and the standardized per-feature weights
-    (largest |weight| first) -- i.e. which features carry the signal.
+    (largest |weight| first) -- i.e. which features the model leans on (read as
+    an importance ranking, not a clean causal attribution: ridge spreads weight
+    across correlated features).
+
+    Cross-validation uses **contiguous** folds by default (``shuffle=False``).
+    Recorded signals and their stimulus features are both autocorrelated in
+    time, so shuffled folds would place a test bin's temporal neighbours in the
+    training set and leak, inflating the held-out score. Contiguous folds are
+    the honest "predict an unseen stretch" test. Pass ``shuffle=True`` only if
+    your bins are genuinely exchangeable.
     """
     X = X.select_dtypes(include=[np.number])
     signal = np.asarray(signal, dtype=float)
@@ -130,7 +141,8 @@ def encode_signal(
         return EncodingResult(float("nan"), float("nan"), n, lag_bins)
 
     preds = np.full(n, np.nan)
-    for tr, te in KFold(n_splits=min(n_splits, n), shuffle=True, random_state=0).split(fx):
+    splitter = KFold(n_splits=min(n_splits, n), shuffle=shuffle, random_state=0 if shuffle else None)
+    for tr, te in splitter.split(fx):
         scaler = StandardScaler()
         model = RidgeCV(alphas=alphas)
         model.fit(scaler.fit_transform(fx[tr]), sy[tr])
