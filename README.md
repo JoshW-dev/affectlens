@@ -3,6 +3,13 @@
 **Extract time-varying features from video, audio, and music — then relate them
 to what people felt or what a signal recorded.**
 
+![Real frames from an 11-minute film above the feature time courses affectlens extracted from it](docs/images/features.png)
+
+<sub>Frames and features from [*Elephants Dream*](https://orange.blender.org/)
+(© 2006 Blender Foundation, CC-BY-2.5), one of the linked sample clips — fetch
+them with `python scripts/fetch_samples.py`, regenerate the figures with
+`python scripts/make_readme_figures.py`.</sub>
+
 `affectlens` turns a folder of clips into aligned feature time courses and gives
 you two ready-made ways to use them:
 
@@ -19,19 +26,20 @@ is bundled, no system install), computing features on each medium's natural
 clock, and resampling everything onto one shared time grid so your design matrix
 and your target line up row-for-row.
 
-```
-             ┌── visual: luminance, contrast, colorfulness, saturation, edges, motion
-   clip  ────┼── audio:  loudness (RMS), zero-crossing rate, spectral centroid, flux
-             └── semantic: embeddings of dialogue chunks (meaning, not just pixels)
-                          │
-                          ▼
-              align onto a shared time grid  ──►  X  (bins × features)
-                          │
-        ┌─────────────────┴──────────────────┐
-        ▼                                     ▼
-  human ratings Y                     recorded signal s(t)
-  → baseline: cross-validated         → encoding: which features predict the
-    Ridge, per-dimension r / R²          signal, with lag search + held-out r
+```mermaid
+flowchart TD
+    clip(["clip — video and/or audio"])
+    clip --> vis["<b>visual</b><br/>luminance · contrast · colorfulness<br/>saturation · edges · motion"]
+    clip --> aud["<b>audio</b><br/>loudness (RMS) · zero-crossing rate<br/>spectral centroid · flux"]
+    clip --> sem["<b>semantic</b><br/>embeddings of dialogue chunks<br/>(meaning, not just pixels)"]
+    vis --> grid["align onto a shared time grid"]
+    aud --> grid
+    sem --> grid
+    grid --> X["<b>X</b> — bins × features"]
+    Y(["human ratings <b>Y</b>"]) --> base
+    X --> base["<b>baseline</b><br/>cross-validated Ridge<br/>per-dimension r / R²"]
+    X --> enc["<b>encode</b><br/>lag search + encoding model<br/>held-out r, feature weights"]
+    S(["recorded signal <b>s(t)</b>"]) --> enc
 ```
 
 ## Install
@@ -67,6 +75,12 @@ affectlens encode --features out/clip_01__features.csv \
 # whole pipeline end-to-end:
 affectlens selftest
 ```
+
+Here is step 4 on real data — a demo "recording" built from the sample film's
+own loudness delayed by one 4.5 s bin (plus noise). The lag scan recovers the
+delay, and the model's top weight lands on the true driving feature:
+
+![encode recovering a planted one-bin lag between a clip's loudness and a demo signal](docs/images/encoding.png)
 
 ### As a library
 

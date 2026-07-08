@@ -30,3 +30,6 @@ All notable changes to this project are documented here. The format is based on
 - Sample-clip manifest (`examples/samples.json`) and fetcher
   (`scripts/fetch_samples.py`): real public-domain / CC test clips are linked
   by URL and downloaded locally, never committed.
+- README visuals: a Mermaid pipeline diagram plus figures generated from the
+  real sample footage (film frames over extracted feature time courses, and an
+  `encode` lag-scan demo) — regenerate with `scripts/make_readme_figures.py`.
