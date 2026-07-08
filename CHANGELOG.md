@@ -33,3 +33,9 @@ All notable changes to this project are documented here. The format is based on
 - README visuals: a Mermaid pipeline diagram plus figures generated from the
   real sample footage (film frames over extracted feature time courses, and an
   `encode` lag-scan demo) — regenerate with `scripts/make_readme_figures.py`.
+
+### Fixed
+- `pipeline.extract_all` now derives each clip's bin grid from the decoded
+  stream's true extent rather than the container-header duration. Some files
+  (notably certain AVIs) report a bogus multi-hour duration from a malformed
+  header, which previously produced a grid of thousands of empty bins.

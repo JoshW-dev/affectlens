@@ -51,20 +51,35 @@ def extract_all(
 ) -> list[ClipFeatures]:
     """Extract features for every clip in a directory, with no ratings.
 
-    The time grid is derived from each clip's duration at
+    The time grid is derived from each clip's *decoded* extent at
     ``config.rating_interval_s`` spacing. Use this when the goal is relating
     features to an external signal (``encode``) rather than to ratings.
+
+    We intentionally do not trust the container-header duration here: some files
+    (e.g. certain AVIs) report a bogus multi-hour duration from a malformed
+    header, which would blow up the bin grid. Extracting the streams first and
+    reading their last timestamp gives the true clip length.
     """
     config = config or ExtractionConfig()
     inv = clips_mod.inventory(Path(clips_dir))
+    interval = config.rating_interval_s
     per_clip: list[ClipFeatures] = []
     for info in inv:
-        if info.error is not None or not info.duration_s:
+        if info.error is not None:
             continue
-        interval = config.rating_interval_s
-        n_bins = max(1, int(info.duration_s // interval))
+        streams = lowlevel.extract_lowlevel(info.path, config)
+        if use_semantic:
+            sem = highlevel.semantic_stream(info.path)
+            if not sem.empty:
+                streams["semantic"] = sem
+        # True extent from the decoded streams, not the (possibly bogus) header.
+        dur = max((float(s["t"].iloc[-1]) for s in streams.values()
+                   if s is not None and len(s)), default=0.0)
+        if dur <= 0:
+            continue
+        n_bins = max(1, int(round(dur / interval)))
         times = np.arange(n_bins) * interval
-        X = extract_clip_features(info.path, times, config, use_semantic)
+        X = align.build_design_matrix(streams, times, config)
         per_clip.append(ClipFeatures(clip=Path(info.path).stem, X=X))
     if not per_clip:
         raise RuntimeError(f"no readable clips found in {clips_dir}")

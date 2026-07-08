@@ -5,9 +5,16 @@ examples/samples/
 *.mp4
 *.mov
 *.mkv
+*.avi
+*.webm
 *.wav
 *.mp3
 *.flac
+*.m4a
+# Rating/feature data formats (incl. MATLAB) and any private working folders.
+*.mat
+*-private-data/
+private/
 
 # Python
 __pycache__/
