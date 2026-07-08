@@ -26,21 +26,16 @@ is bundled, no system install), computing features on each medium's natural
 clock, and resampling everything onto one shared time grid so your design matrix
 and your target line up row-for-row.
 
-```mermaid
-flowchart TD
-    clip(["clip — video and/or audio"])
-    clip --> vis["<b>visual</b><br/>luminance · contrast · colorfulness<br/>saturation · edges · motion"]
-    clip --> aud["<b>audio</b><br/>loudness (RMS) · zero-crossing rate<br/>spectral centroid · flux"]
-    clip --> sem["<b>semantic</b><br/>embeddings of dialogue chunks<br/>(meaning, not just pixels)"]
-    vis --> grid["align onto a shared time grid"]
-    aud --> grid
-    sem --> grid
-    grid --> X["<b>X</b> — bins × features"]
-    Y(["human ratings <b>Y</b>"]) --> base
-    X --> base["<b>baseline</b><br/>cross-validated Ridge<br/>per-dimension r / R²"]
-    X --> enc["<b>encode</b><br/>lag search + encoding model<br/>held-out r, feature weights"]
-    S(["recorded signal <b>s(t)</b>"]) --> enc
-```
+![affectlens pipeline: a clip fans out into visual, audio, and semantic feature families, which align onto a shared time grid to form the feature matrix X; X feeds two workflows — a cross-validated baseline against human ratings Y, and an encoding model against a recorded signal s(t)](docs/images/pipeline.png)
+
+<!-- Diagram source: docs/images/pipeline.mmd (regenerate with the command noted there). -->
+
+The pipeline in words: a **clip** fans out into **visual**, **audio**, and
+**semantic** feature families; those **align onto a shared time grid** to form
+the design matrix **X** (bins × features). From there, two workflows: a
+cross-validated **baseline** that predicts human ratings **Y**, and an
+**encode** step that relates the features to a separately recorded signal
+**s(t)** with a lag search.
 
 ## Install
 

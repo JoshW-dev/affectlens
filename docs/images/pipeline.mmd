@@ -1,0 +1,18 @@
+%% Regenerate: npx -p @mermaid-js/mermaid-cli mmdc -i docs/images/pipeline.mmd -o docs/images/pipeline.png -b white -s 3
+flowchart TD
+    clip(["clip<br/>video and/or audio"]):::input
+    clip --> vis["<b>visual</b><br/>luminance, contrast, colorfulness,<br/>saturation, edges, motion"]:::feat
+    clip --> aud["<b>audio</b><br/>loudness (RMS), zero-crossing rate,<br/>spectral centroid, flux"]:::feat
+    clip --> sem["<b>semantic</b><br/>embeddings of dialogue chunks<br/>(meaning, not just pixels)"]:::feat
+    vis --> grid["align onto a shared time grid"]:::mid
+    aud --> grid
+    sem --> grid
+    grid --> X["<b>X</b> &nbsp; bins &times; features"]:::mid
+    Y(["human ratings <b>Y</b>"]):::input --> base
+    X --> base["<b>baseline</b><br/>cross-validated Ridge<br/>per-dimension r / R&sup2;"]:::out
+    X --> enc["<b>encode</b><br/>lag search + encoding model<br/>held-out r, feature weights"]:::out
+    S(["recorded signal <b>s(t)</b>"]):::input --> enc
+    classDef input fill:#e8eef7,stroke:#4a6fa5,color:#16233d,stroke-width:1.5px
+    classDef feat fill:#eef6ee,stroke:#5a9367,color:#1e3a24,stroke-width:1.5px
+    classDef mid fill:#f5f0e6,stroke:#b08a3e,color:#3d2f14,stroke-width:1.5px
+    classDef out fill:#f7ecec,stroke:#b05a5a,color:#3d1a1a,stroke-width:1.5px
