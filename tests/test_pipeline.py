@@ -109,6 +109,18 @@ def test_end_to_end_pipeline_recovers_signal():
     assert result.mean_r > 0.3, f"mean_r too low: {result.mean_r}"
 
 
+def test_hashing_embedder_no_nan_on_cancelling_tokens():
+    from affectlens.highlevel import HashingEmbedder
+
+    # A small bucket count forces many tokens to collide; some buckets sum to 0
+    # (opposite-sign hits cancel). The embedding must stay finite -- a 0 bucket
+    # must not become NaN via log(0), which would later break the PCA SVD.
+    emb = HashingEmbedder(dim=8)
+    texts = [" ".join(f"tok{i}" for i in range(200)), "a b c a b c a"]
+    v = emb.embed(texts)
+    assert np.isfinite(v).all()
+
+
 def test_extract_all_without_ratings():
     from affectlens import pipeline
 

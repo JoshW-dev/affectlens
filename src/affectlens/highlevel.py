@@ -146,7 +146,11 @@ class HashingEmbedder:
                 sign = 1.0 if (h // self.dim) % 2 == 0 else -1.0
                 counts[idx] = counts.get(idx, 0.0) + sign
             for idx, c in counts.items():
-                out[i, idx] = np.sign(c) * (1.0 + np.log(abs(c)))
+                # c is a sum of +/-1 sign hits; it is 0 when a bucket's hits
+                # cancel. Skip those (log(0) would make the entry NaN); the
+                # zero-initialised slot already represents "no contribution".
+                if c != 0:
+                    out[i, idx] = np.sign(c) * (1.0 + np.log(abs(c)))
             norm = np.linalg.norm(out[i])
             if norm > 0:
                 out[i] /= norm
@@ -189,7 +193,12 @@ def semantic_stream(
 
 
 def _pca(x: np.ndarray, k: int) -> np.ndarray:
-    xc = x - x.mean(axis=0, keepdims=True)
-    # Economy SVD; columns of Vt are principal directions.
-    _, _, vt = np.linalg.svd(xc, full_matrices=False)
+    xc = np.nan_to_num(x - x.mean(axis=0, keepdims=True))
+    # Economy SVD; rows of vt are principal directions. If the SVD fails to
+    # converge on a degenerate matrix (some numpy builds raise), fall back to
+    # the leading raw features so the semantic path degrades instead of crashing.
+    try:
+        _, _, vt = np.linalg.svd(xc, full_matrices=False)
+    except np.linalg.LinAlgError:
+        return xc[:, :k]
     return xc @ vt[:k].T
