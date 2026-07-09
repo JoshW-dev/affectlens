@@ -22,7 +22,8 @@ All notable changes to this project are documented here. The format is based on
   leave-one-clip-out folds, per-dimension Pearson r / R².
 - Signal encoding (`affectlens encode`): correlate features against an external
   continuous signal with lag scanning, plus a cross-validated ridge encoding
-  model reporting held-out r and per-feature weights.
+  model (contiguous folds by default, to avoid temporal leakage) reporting
+  held-out r and per-feature weights.
 - `affectlens selftest`: generates synthetic clips and runs the full pipeline.
 - Ratings-free extraction: `affectlens extract` works without `--ratings`,
   binning features on a duration-derived grid (`pipeline.extract_all`) — the

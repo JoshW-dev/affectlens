@@ -5,19 +5,19 @@ labels you supply. We fit a regularized linear model (RidgeCV) per rated feature
 and report cross-validated agreement -- how much of a rating the low-level
 features can account for, and a reference a richer model has to beat.
 
-Scoring is cross-validated so we measure generalization, not fit. When the data
-spans multiple clips we use leave-one-clip-out folds -- the honest test of
-"predict a clip the model has not seen". With a single clip we fall back to
-K-fold over bins.
+Scoring is cross-validated so we measure generalization, not fit. Across
+multiple clips we use grouped folds by clip (leave-one-clip-out, capped at 5
+folds) -- the honest test of "predict a clip the model has not seen". With a
+single clip we fall back to K-fold over bins (shuffled, so under strong temporal
+autocorrelation treat a single-clip score as a rough sanity check).
 
-Deliberately a linear baseline: it is a clear reference, it is interpretable
-(per-feature coefficients say which regressors drive each rating), and it is the
-number a richer model must beat.
+Deliberately a linear baseline: a clear, interpretable reference that a richer
+model has to beat.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
@@ -32,7 +32,6 @@ class FeatureScore:
     pearson_r: float
     r2: float
     n: int
-    top_predictors: list[tuple[str, float]] = field(default_factory=list)
 
 
 @dataclass
@@ -58,11 +57,11 @@ class BaselineResult:
 def _cv_splits(n: int, groups: np.ndarray | None):
     if groups is not None and len(np.unique(groups)) >= 2:
         n_splits = min(len(np.unique(groups)), 5)
-        return GroupKFold(n_splits=n_splits).split(np.arange(n), groups=groups), groups
-    n_splits = min(5, n) if n >= 2 else 2
+        return GroupKFold(n_splits=n_splits).split(np.arange(n), groups=groups)
+    n_splits = min(5, n) if n >= 2 else 0
     if n_splits < 2:
-        return None, None
-    return KFold(n_splits=n_splits, shuffle=True, random_state=0).split(np.arange(n)), None
+        return None
+    return KFold(n_splits=n_splits, shuffle=True, random_state=0).split(np.arange(n))
 
 
 def _pearson(a: np.ndarray, b: np.ndarray) -> float:
@@ -79,13 +78,14 @@ def score_baseline(
 ) -> BaselineResult:
     """Cross-validated ridge regression from features X to each target in Y.
 
-    ``groups`` (e.g. clip id per row) triggers leave-one-group-out CV.
+    ``groups`` (e.g. clip id per row) triggers grouped CV by that column
+    (leave-one-clip-out, capped at 5 folds).
     """
     X = X.select_dtypes(include=[np.number])
     n = len(X)
     scores: list[FeatureScore] = []
 
-    split_iter, used_groups = _cv_splits(n, groups)
+    split_iter = _cv_splits(n, groups)
     splits = list(split_iter) if split_iter is not None else []
 
     for feat in Y.columns:
@@ -118,13 +118,6 @@ def score_baseline(
         ss_tot = float(np.sum((y[valid] - y[valid].mean()) ** 2))
         r2 = 1.0 - ss_res / ss_tot if ss_tot > 1e-12 else float("nan")
 
-        # Interpretability: refit on all data to read coefficient magnitudes.
-        scaler = StandardScaler()
-        model = RidgeCV(alphas=alphas)
-        model.fit(scaler.fit_transform(X.iloc[np.where(mask)[0]]), y[mask])
-        order = np.argsort(np.abs(model.coef_))[::-1][:5]
-        top = [(X.columns[i], float(model.coef_[i])) for i in order]
-
-        scores.append(FeatureScore(feat, r, r2, int(valid.sum()), top))
+        scores.append(FeatureScore(feat, r, r2, int(valid.sum())))
 
     return BaselineResult(scores=scores, n_bins=n, n_features_in=X.shape[1])

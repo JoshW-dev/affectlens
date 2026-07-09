@@ -69,7 +69,7 @@ def make_features_figure(X: pd.DataFrame) -> None:
         height_ratios=[1.9] + [1] * len(curves), hspace=0.35, wspace=0.04,
     )
 
-    for i, (t, frame) in enumerate(zip(FRAME_TIMES_S, frames)):
+    for i, (t, frame) in enumerate(zip(FRAME_TIMES_S, frames, strict=False)):
         ax = fig.add_subplot(gs[0, i])
         ax.imshow(frame)
         ax.set_title(f"{t//60}:{t%60:02d}", fontsize=9, color="0.35", pad=3)
@@ -146,7 +146,7 @@ def make_encoding_figure(X: pd.DataFrame) -> None:
         ax2.spines[spine].set_visible(False)
     ax2.set_title(f"…and the lag scan finds it (lag={lags[best]})", fontsize=10, color="0.25", loc="left")
 
-    fig.suptitle("affectlens encode — which features drive a recorded signal, and at what delay", fontsize=11)
+    fig.suptitle("affectlens encode — which features the model leans on, and at what delay", fontsize=11)
     fig.tight_layout()
     fig.savefig(OUT_DIR / "encoding.png", dpi=150, bbox_inches="tight", facecolor="white")
     plt.close(fig)

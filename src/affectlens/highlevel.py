@@ -164,9 +164,9 @@ def semantic_stream(
 ) -> pd.DataFrame:
     """Produce a per-segment semantic feature stream for a clip.
 
-    Returns a frame with a ``t`` column (segment midpoint) and ``sem_*`` columns.
-    Empty (no columns beyond none) when the clip has no available transcript, so
-    the pipeline degrades gracefully to low-level-only features.
+    Returns a frame with a ``t`` column (segment midpoint) and ``sem_*`` columns,
+    or an empty DataFrame when the clip has no available transcript, so the
+    pipeline degrades gracefully to low-level-only features.
 
     ``n_components`` optionally reduces the raw embedding to its leading PCA
     components across the clip's segments, keeping the design matrix compact.

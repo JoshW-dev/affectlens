@@ -21,15 +21,6 @@ AUDIO_EXTENSIONS = {".wav", ".mp3", ".flac", ".m4a", ".aac", ".ogg", ".opus"}
 MEDIA_EXTENSIONS = VIDEO_EXTENSIONS | AUDIO_EXTENSIONS
 
 
-def _ffprobe_exe() -> str:
-    """Locate an ffprobe binary.
-
-    imageio-ffmpeg ships ffmpeg but not ffprobe. ffmpeg alone can report stream
-    info via ``-i`` on stderr, so we parse that rather than requiring ffprobe.
-    """
-    return imageio_ffmpeg.get_ffmpeg_exe()
-
-
 @dataclass
 class ClipInfo:
     path: str
@@ -95,8 +86,10 @@ def _parse_ffmpeg_info(stderr: str) -> dict:
 
 def probe_clip(path: str | Path) -> ClipInfo:
     path = Path(path)
+    # imageio-ffmpeg ships ffmpeg but not ffprobe; ``ffmpeg -i`` prints stream
+    # info on stderr, which we parse instead.
     proc = subprocess.run(
-        [_ffprobe_exe(), "-hide_banner", "-i", str(path)],
+        [imageio_ffmpeg.get_ffmpeg_exe(), "-hide_banner", "-i", str(path)],
         capture_output=True,
         text=True,
     )
@@ -114,7 +107,7 @@ def probe_clip(path: str | Path) -> ClipInfo:
 
 
 def inventory(clips_dir: str | Path) -> list[ClipInfo]:
-    """Probe every video file in ``clips_dir`` (non-recursive + recursive)."""
+    """Probe every media file (video or audio) in ``clips_dir``, recursively."""
     clips_dir = Path(clips_dir)
     if not clips_dir.exists():
         raise FileNotFoundError(f"clips directory does not exist: {clips_dir}")

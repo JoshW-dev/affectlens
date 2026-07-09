@@ -12,7 +12,7 @@
 from __future__ import annotations
 
 import argparse
-import json
+import math
 import sys
 from pathlib import Path
 
@@ -86,7 +86,7 @@ def _cmd_encode(args) -> int:
     print(f"bins:              {len(X)}")
     print(f"features:          {X.shape[1]}")
     print(f"encoding model r:  {enc.r:.3f}  (r2={enc.r2:.3f}, lag={enc.lag_bins} bins)")
-    print("\ntop features driving the signal (|weight|):")
+    print("\ntop features the model leans on (|weight|):")
     for name, w in enc.weights[:10]:
         print(f"  {w:+.3f}  {name}")
     print("\nper-feature correlation (best lag):")
@@ -103,8 +103,7 @@ def _cmd_selftest(args) -> int:
     print("self-test pipeline ran end-to-end.")
     print(f"mean Pearson r on synthetic data: {result.mean_r:.3f}")
     print(result.to_frame().to_string(index=False))
-    ok = result.mean_r == result.mean_r  # not NaN
-    return 0 if ok else 1
+    return int(math.isnan(result.mean_r))  # non-zero exit if the pipeline produced no score
 
 
 def _safe(name: str) -> str:
@@ -153,9 +152,9 @@ def build_parser() -> argparse.ArgumentParser:
             sp = sub.add_parser(
                 name,
                 help="score how well features predict human ratings (cross-validated)",
-                description="Fit a leave-one-clip-out cross-validated Ridge model that "
-                "predicts each rated dimension from the clip features, and print the "
-                "per-dimension held-out Pearson r / R2.",
+                description="Fit a grouped cross-validated (by clip, leave-one-clip-out, "
+                "capped at 5 folds) Ridge model that predicts each rated dimension from "
+                "the clip features, and print the per-dimension held-out Pearson r / R2.",
             )
         sp.add_argument("--clips", required=True, metavar="DIR",
                         help="directory of video/audio clips")
@@ -210,7 +209,7 @@ def build_parser() -> argparse.ArgumentParser:
         "selftest",
         help="run the whole pipeline on generated synthetic data",
         description="Generate synthetic clips + ratings and run extract -> align -> "
-        "baseline -> encode end-to-end, as a self-contained smoke test (no data needed).",
+        "baseline end-to-end, as a self-contained smoke test (no data needed).",
     )
     ps.set_defaults(func=_cmd_selftest)
 

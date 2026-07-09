@@ -22,6 +22,7 @@ bin is ~4.5 s -- a reasonable first guess for an fMRI hemodynamic delay.
 
 from __future__ import annotations
 
+import warnings
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -128,6 +129,11 @@ def encode_signal(
     training set and leak, inflating the held-out score. Contiguous folds are
     the honest "predict an unseen stretch" test. Pass ``shuffle=True`` only if
     your bins are genuinely exchangeable.
+
+    Any bin with a NaN in *any* feature is dropped (not imputed) on this path, so
+    sparse features -- e.g. ``semantic__*`` columns, which are NaN in every
+    dialogue-free bin -- can drop most rows and yield an all-NaN result; a
+    warning is emitted when that happens.
     """
     X = X.select_dtypes(include=[np.number])
     signal = np.asarray(signal, dtype=float)
@@ -135,6 +141,14 @@ def encode_signal(
     fx, sy = _apply_lag(fx, signal, lag_bins)
 
     row_ok = ~np.isnan(sy) & ~np.isnan(fx).any(axis=1)
+    n_dropped = int((~row_ok).sum())
+    if n_dropped > 0.5 * len(sy) and len(sy):
+        warnings.warn(
+            f"encode_signal dropped {n_dropped}/{len(sy)} bins with a NaN feature or "
+            "signal value (sparse features such as semantic columns are NaN in "
+            "event-free bins and are not imputed here).",
+            stacklevel=2,
+        )
     fx, sy = fx[row_ok], sy[row_ok]
     n = len(sy)
     if n < max(6, n_splits):

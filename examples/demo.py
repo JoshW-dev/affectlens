@@ -45,7 +45,7 @@ def main() -> None:
 
         enc = encoding.encode_signal(X, signal, lag_bins=1)
         print(f"encoding model held-out r: {enc.r:.3f}  (lag {enc.lag_bins} bin)")
-        print("top features driving the signal:")
+        print("top features the model leans on:")
         for name, w in enc.weights[:5]:
             print(f"  {w:+.3f}  {name}")
 

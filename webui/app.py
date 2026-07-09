@@ -69,12 +69,12 @@ def get_inventory(clips_dir: str):
 
 
 @st.cache_data(show_spinner="Extracting feature time courses…")
-def extract(path: str, duration: float, interval: float,
+def extract(path: str, interval: float,
             visual: bool, audio: bool, use_semantic: bool) -> pd.DataFrame:
     cfg = ExtractionConfig(rating_interval_s=interval, visual=visual, audio=audio)
-    n_bins = max(1, int(duration // interval))
-    times = np.arange(n_bins) * interval
-    return pipeline.extract_clip_features(path, times, cfg, use_semantic)
+    # Grids from the decoded stream extent (survives bogus container headers) —
+    # the same path extract_all/the CLI use.
+    return pipeline.extract_clip_auto(path, cfg, use_semantic)
 
 
 st.set_page_config(page_title="affectlens", layout="wide", page_icon="🎬")
@@ -142,8 +142,7 @@ with tab_feat:
     picked = st.selectbox("Pick a clip to analyse", names)
     info = next(c for c in inv if c["clip"] == picked)
 
-    X = extract(info["path"], info["duration_s"] or 0.0, interval,
-                use_visual, use_audio, use_semantic)
+    X = extract(info["path"], interval, use_visual, use_audio, use_semantic)
 
     c1, c2, c3 = st.columns(3)
     c1.metric("Time bins", X.shape[0], help="rows — one per time bin")
@@ -183,8 +182,7 @@ with tab_signal:
 
     picked2 = st.selectbox("Clip", names, key="signal_clip")
     info2 = next(c for c in inv if c["clip"] == picked2)
-    X2 = extract(info2["path"], info2["duration_s"] or 0.0, interval,
-                 use_visual, use_audio, use_semantic)
+    X2 = extract(info2["path"], interval, use_visual, use_audio, use_semantic)
 
     if len(X2) < 8:
         st.info(

@@ -84,8 +84,9 @@ def build_design_matrix(
     if not parts:
         return pd.DataFrame(index=pd.Index(edges[:-1] if edges.size else [], name="t_start"))
     X = pd.concat(parts, axis=1)
-    # Bins with no samples (e.g. trailing silence) -> forward/zero fill rather
-    # than drop, so X and Y keep the same rows.
+    # Sort by bin start so rows line up with the target index. Bins with no
+    # samples (e.g. trailing silence) stay NaN here; they are mean-imputed in
+    # align_xy on the baseline path and dropped in encode_signal on the encode path.
     X = X.sort_index()
     return X
 

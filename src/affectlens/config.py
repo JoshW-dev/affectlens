@@ -1,8 +1,9 @@
 """Project-wide configuration and constants.
 
-The rating grid is treated as the ground-truth time base: features are
-aggregated onto the same bins so the design matrix and the target share a time
-axis. All values here are overridable per run via :class:`ExtractionConfig`.
+Features are aggregated onto a shared time grid -- the rating grid when ratings
+are supplied, otherwise a grid derived from each clip's decoded duration -- so
+the design matrix and target share a time axis. All values here are overridable
+per run via :class:`ExtractionConfig`.
 """
 
 from __future__ import annotations
@@ -11,10 +12,7 @@ from dataclasses import dataclass, field
 
 # Default spacing of the human rating grid, in seconds. Continuous behavioral
 # ratings are often collected every few seconds; override to match your data.
-# The rating grid is the ground-truth time base: features are aggregated onto
-# the same bins so the design matrix and the target share a time axis.
 DEFAULT_RATING_INTERVAL_S: float = 4.5
-N_PARTICIPANTS: int = 4
 
 # Visual sampling. We do not need every frame for slowly-varying low-level
 # regressors; sampling a few frames per second keeps extraction fast while still

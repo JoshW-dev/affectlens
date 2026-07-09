@@ -148,7 +148,7 @@ print(result.to_frame())          # per-rated-dimension Pearson r / R²
 X = per_clip[0].X                 # bins × features, indexed by bin start time
 signal = encoding.bin_signal(times, values, X.index.to_numpy(), interval_s=4.5)
 enc = encoding.encode_signal(X, signal, lag_bins=1)
-print(enc.r, enc.weights[:5])     # held-out r, and the features that drive it
+print(enc.r, enc.weights[:5])     # held-out r, and the features the response leans on
 ```
 
 ## Inputs
@@ -208,9 +208,9 @@ Nothing downstream changes when you swap them.
 - **One shared time base.** Human ratings and most recorded signals are sampled
   slowly and irregularly. Everything is resampled onto the rating/feature grid so
   correlation and regression are apples-to-apples.
-- **Cross-validated, interpretable baselines.** Ridge with leave-one-clip-out
-  folds is the honest "predict an unseen clip" test, and its per-feature weights
-  say *why*. It's the number a fancier model has to beat.
+- **Cross-validated, interpretable baselines.** Ridge with grouped
+  (leave-one-clip-out) folds is the honest "predict an unseen clip" test — a
+  clear, interpretable reference a fancier model has to beat.
 - **Lag-aware encoding.** A recorded response often trails the stimulus by a
   fixed delay (an fMRI hemodynamic response peaks seconds later). `encode`/
   `correlate` scan a few integer-bin lags so you find that delay instead of
