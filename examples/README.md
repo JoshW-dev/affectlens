@@ -35,5 +35,18 @@
   `pip install yt-dlp`. Each entry is `{"name", "url"}` with optional
   `"start"`/`"duration"` seconds to trim a section.
 
-Bring your own clips and point the CLI at them to run the same flow on real data
-— see the top-level README quick start.
+## Point-and-click web UI
+
+Prefer buttons to code? A small [Streamlit](https://streamlit.io) app in
+[`webui/app.py`](../webui/app.py) wraps the same pipeline: pick a clip, extract
+feature time courses, plot them, and relate them to an uploaded signal — with a
+hover tooltip explaining every feature.
+
+```bash
+pip install -e ".[webui]"
+python scripts/fetch_samples.py       # optional: the demo clips
+streamlit run webui/app.py
+```
+
+Bring your own clips and point any of these (CLI, notebook, or web UI) at them to
+run the same flow on real data — see the top-level README quick start.

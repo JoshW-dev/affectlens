@@ -125,10 +125,14 @@ affectlens selftest
 above, run on a real film. The CLI's `--lags 0,1,2` *scans* those lags; the
 library's `lag_bins=1` fixes one — same machinery, two entry points.)
 
-> **New here?** The guided notebook
-> [`examples/getting_started.ipynb`](examples/getting_started.ipynb) walks the
-> whole pipeline on the sample clips with a plot and a plain-English note at
-> every step — the gentlest way in. `pip install -e ".[notebook]"` to run it.
+> **New here?** Two gentle ways in, no CLI needed:
+> - the guided notebook
+>   [`examples/getting_started.ipynb`](examples/getting_started.ipynb) — the whole
+>   pipeline on the sample clips with a plot and a plain-English note at each step
+>   (`pip install -e ".[notebook]"`);
+> - a point-and-click web app — `pip install -e ".[webui]"` then
+>   `streamlit run webui/app.py` — pick a clip, plot its features, relate them to
+>   an uploaded signal, with a tooltip explaining every feature.
 
 ### As a library
 

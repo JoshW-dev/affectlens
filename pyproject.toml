@@ -49,6 +49,8 @@ semantic = ["sentence-transformers>=2.2"]
 asr = ["faster-whisper>=1.0"]
 # Run the guided notebook (examples/getting_started.ipynb) and regenerate figures.
 notebook = ["matplotlib>=3.7", "jupyterlab>=4.0"]
+# Point-and-click web UI (webui/app.py): `streamlit run webui/app.py`.
+webui = ["streamlit>=1.30"]
 dev = ["pytest>=7.0"]
 
 [project.urls]
