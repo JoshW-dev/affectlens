@@ -125,6 +125,11 @@ affectlens selftest
 above, run on a real film. The CLI's `--lags 0,1,2` *scans* those lags; the
 library's `lag_bins=1` fixes one — same machinery, two entry points.)
 
+> **New here?** The guided notebook
+> [`examples/getting_started.ipynb`](examples/getting_started.ipynb) walks the
+> whole pipeline on the sample clips with a plot and a plain-English note at
+> every step — the gentlest way in. `pip install -e ".[notebook]"` to run it.
+
 ### As a library
 
 ```python

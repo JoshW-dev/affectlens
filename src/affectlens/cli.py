@@ -30,7 +30,9 @@ def _cmd_inventory(args) -> int:
 
 
 def _cmd_extract(args) -> int:
-    config = ExtractionConfig(visual=not args.no_visual, audio=not args.no_audio)
+    config = ExtractionConfig(
+        visual=not args.no_visual, audio=not args.no_audio, rating_interval_s=args.interval
+    )
     if args.ratings:
         per_clip, _ = pipeline.run(
             args.clips, args.ratings, config=config, use_semantic=not args.no_semantic
@@ -51,7 +53,9 @@ def _cmd_extract(args) -> int:
 
 
 def _cmd_baseline(args) -> int:
-    config = ExtractionConfig(visual=not args.no_visual, audio=not args.no_audio)
+    config = ExtractionConfig(
+        visual=not args.no_visual, audio=not args.no_audio, rating_interval_s=args.interval
+    )
     per_clip, result = pipeline.run(
         args.clips, args.ratings, config=config, use_semantic=not args.no_semantic
     )
@@ -108,38 +112,106 @@ def _safe(name: str) -> str:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="affectlens", description=__doc__)
-    sub = p.add_subparsers(dest="command", required=True)
+    p = argparse.ArgumentParser(
+        prog="affectlens",
+        description=(
+            "Extract time-varying visual, audio, and semantic features from video, "
+            "audio, and music clips, and relate them to human ratings or a recorded "
+            "signal. Every command below has its own --help."
+        ),
+        epilog=(
+            "examples:\n"
+            "  affectlens inventory --clips data/clips\n"
+            "  affectlens extract   --clips data/clips --out out/ --interval 1.0\n"
+            "  affectlens baseline  --clips data/clips --ratings data/ratings.csv\n"
+            "  affectlens encode    --features out/clip__features.csv --signal sig.csv --lags 0,1,2\n"
+            "  affectlens selftest\n"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    sub = p.add_subparsers(dest="command", required=True, metavar="COMMAND")
 
-    pi = sub.add_parser("inventory", help="probe clip durations / streams")
-    pi.add_argument("--clips", required=True)
+    pi = sub.add_parser(
+        "inventory",
+        help="probe clip durations, resolution, and audio/video streams",
+        description="Print a JSON report for every clip in a directory: duration, "
+        "resolution, frame rate, and whether it carries audio and/or video.",
+    )
+    pi.add_argument("--clips", required=True, metavar="DIR",
+                    help="directory of video/audio clips to probe")
     pi.set_defaults(func=_cmd_inventory)
 
     for name, func, needs_out in (("extract", _cmd_extract, True), ("baseline", _cmd_baseline, False)):
-        sp = sub.add_parser(name)
-        sp.add_argument("--clips", required=True)
+        if needs_out:
+            sp = sub.add_parser(
+                name,
+                help="extract per-clip feature time courses to CSV",
+                description="Extract aligned feature time courses for each clip and "
+                "write them to CSV -- one row per time bin, one column per feature.",
+            )
+        else:
+            sp = sub.add_parser(
+                name,
+                help="score how well features predict human ratings (cross-validated)",
+                description="Fit a leave-one-clip-out cross-validated Ridge model that "
+                "predicts each rated dimension from the clip features, and print the "
+                "per-dimension held-out Pearson r / R2.",
+            )
+        sp.add_argument("--clips", required=True, metavar="DIR",
+                        help="directory of video/audio clips")
         # Ratings are what `baseline` scores against; `extract` can run without
         # them on a duration-derived grid (the `encode` workflow).
-        sp.add_argument("--ratings", required=not needs_out)
+        sp.add_argument(
+            "--ratings", required=not needs_out, metavar="PATH",
+            help="ratings CSV/Excel to score against"
+            + ("; optional -- without it, features are binned on a duration-derived grid"
+               if needs_out else ""),
+        )
         if needs_out:
-            sp.add_argument("--out", required=True)
-        sp.add_argument("--no-visual", action="store_true")
-        sp.add_argument("--no-audio", action="store_true")
-        sp.add_argument("--no-semantic", action="store_true")
+            sp.add_argument("--out", required=True, metavar="DIR",
+                            help="output directory for the per-clip feature CSVs")
+        sp.add_argument("--interval", type=float, default=DEFAULT_RATING_INTERVAL_S, metavar="SEC",
+                        help="feature time-bin width in seconds "
+                        "(default: %(default)s; e.g. 1.0 for finer temporal resolution)")
+        sp.add_argument("--no-visual", action="store_true",
+                        help="skip visual features (treat clips as audio-only)")
+        sp.add_argument("--no-audio", action="store_true",
+                        help="skip audio features (treat clips as silent video)")
+        sp.add_argument("--no-semantic", action="store_true",
+                        help="skip semantic/dialogue features")
         sp.set_defaults(func=func)
 
-    pe = sub.add_parser("encode", help="relate extracted features to an external signal")
-    pe.add_argument("--features", required=True, help="a features CSV written by `extract`")
-    pe.add_argument("--signal", required=True, help="CSV with a time column and a value column")
-    pe.add_argument("--signal-time-col", default=None)
-    pe.add_argument("--signal-value-col", default=None)
-    pe.add_argument("--interval", type=float, default=DEFAULT_RATING_INTERVAL_S,
-                    help="feature bin width in seconds")
-    pe.add_argument("--lag", type=int, default=0, help="encoding-model lag in bins")
-    pe.add_argument("--lags", default="0", help="comma-separated lags (bins) to scan for correlation")
+    pe = sub.add_parser(
+        "encode",
+        help="relate extracted features to an external signal, with lag search",
+        description="Correlate a clip's feature time courses against a separately "
+        "recorded signal (e.g. a physiological or brain channel), scanning lags, and "
+        "fit a cross-validated ridge encoding model that reports held-out r and the "
+        "features it leans on.",
+    )
+    pe.add_argument("--features", required=True, metavar="CSV",
+                    help="a features CSV written by `extract`")
+    pe.add_argument("--signal", required=True, metavar="CSV",
+                    help="CSV with a time column and a value column")
+    pe.add_argument("--signal-time-col", default=None, metavar="COL",
+                    help="name of the signal's time column (default: first column)")
+    pe.add_argument("--signal-value-col", default=None, metavar="COL",
+                    help="name of the signal's value column (default: second column)")
+    pe.add_argument("--interval", type=float, default=DEFAULT_RATING_INTERVAL_S, metavar="SEC",
+                    help="feature bin width in seconds; must match how the features "
+                    "were extracted (default: %(default)s)")
+    pe.add_argument("--lag", type=int, default=0, metavar="BINS",
+                    help="lag (in bins) for the encoding model (default: %(default)s)")
+    pe.add_argument("--lags", default="0", metavar="L,L,...",
+                    help="comma-separated lags (in bins) to scan for the per-feature correlation")
     pe.set_defaults(func=_cmd_encode)
 
-    ps = sub.add_parser("selftest", help="run the pipeline on generated synthetic data")
+    ps = sub.add_parser(
+        "selftest",
+        help="run the whole pipeline on generated synthetic data",
+        description="Generate synthetic clips + ratings and run extract -> align -> "
+        "baseline -> encode end-to-end, as a self-contained smoke test (no data needed).",
+    )
     ps.set_defaults(func=_cmd_selftest)
 
     return p

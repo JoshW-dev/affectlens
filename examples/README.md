@@ -1,5 +1,18 @@
 # Examples
 
+- **`getting_started.ipynb`** — the guided tour, and the best place to start. It
+  walks the whole pipeline on the public sample clips with a plot and a
+  plain-English explanation at each step: inventory → extract feature time
+  courses → relate them to a recorded signal (`encode`) → predict ratings
+  (`baseline`). Ships with its outputs so you can read it without running
+  anything.
+
+  ```bash
+  pip install -e ".[notebook]"
+  python scripts/fetch_samples.py
+  jupyter lab examples/getting_started.ipynb
+  ```
+
 - **`demo.py`** — runs the whole pipeline on generated synthetic clips (no
   external data): extracts features, reproduces synthetic ratings with the
   cross-validated baseline, then recovers a fabricated lagged "recorded signal"

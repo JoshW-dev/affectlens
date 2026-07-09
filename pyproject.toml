@@ -47,6 +47,8 @@ dependencies = [
 # Real high-level semantic path (offline hashing fallback needs none of these).
 semantic = ["sentence-transformers>=2.2"]
 asr = ["faster-whisper>=1.0"]
+# Run the guided notebook (examples/getting_started.ipynb) and regenerate figures.
+notebook = ["matplotlib>=3.7", "jupyterlab>=4.0"]
 dev = ["pytest>=7.0"]
 
 [project.urls]
