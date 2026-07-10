@@ -18,6 +18,11 @@ Figure 2 (encoding.png): the `encode` workflow on a demo signal fabricated
 from the clip's own loudness delayed by one bin, showing the lag scan
 recovering the delay. Deterministic (fixed RNG seed).
 
+Figure 3 (midlevel.png): the mid-level tier over the same clip — six
+perceptual primitives (flow magnitude, flow coherence, scene cuts, colour
+warmth, spectral flatness, and pitch F0 shaded by voicing), each labelled
+with the brain system it is meant to probe.
+
 Elephants Dream is (c) 2006 Blender Foundation / Netherlands Media Art
 Institute, CC-BY-2.5 — the README credits it alongside the figures.
 """
@@ -153,29 +158,42 @@ def make_encoding_figure(X: pd.DataFrame) -> None:
 
 
 def make_midlevel_figure(X: pd.DataFrame) -> None:
-    """Three mid-level feature time courses on the film: motion, cuts, pitch."""
+    """The mid-level tier over the film: six perceptual primitives, each mapped
+    to a named brain system, riding the same decode passes as the low-level set.
+    """
     t_min = X.index.to_numpy() / 60.0
-    fig, axes = plt.subplots(3, 1, figsize=(11, 4.4), sharex=True)
+    fig, axes = plt.subplots(6, 1, figsize=(11, 7.4), sharex=True)
 
-    axes[0].plot(t_min, X["visual__flow_magnitude_mean"], color="#c0504d", lw=1.0)
-    axes[0].set_ylabel("optical-flow\nmotion")
-    axes[0].set_title("affectlens mid-level features — motion, scene cuts, and pitch over time",
-                      loc="left", fontsize=11)
-
-    axes[1].plot(t_min, X["visual__scene_cut_max"], color="#4472c4", lw=1.0)
-    axes[1].set_ylabel("scene-cut\nscore")
+    # (column, label -> brain system, colour) for the five line panels.
+    line_panels = [
+        ("visual__flow_magnitude_mean", "motion energy\n(MT / V5)", "#c0504d"),
+        ("visual__flow_coherence_mean", "flow coherence\n(MST / CSv)", "#e8862d"),
+        ("visual__scene_cut_max", "scene cuts\n(hippocampus)", "#4472c4"),
+        ("visual__chroma_by_mean", "colour warmth\n(V4 / VO)", "#7f6000"),
+        ("audio__spectral_flatness_mean", "tonality: flatness\n(non-primary AC)", "#2e8b7f"),
+    ]
+    for ax, (col, label, color) in zip(axes[:5], line_panels, strict=True):
+        ax.plot(t_min, X[col], color=color, lw=1.0)
+        ax.set_ylabel(label, fontsize=8, rotation=0, ha="right", va="center", color="0.25")
+        ax.set_yticks([])
 
     f0 = X["audio__pitch_f0_mean"].to_numpy()
     voi = X["audio__voicing_mean"].to_numpy()
-    sc = axes[2].scatter(t_min, f0, s=14, c=voi, cmap="viridis", vmin=0.0, vmax=float(voi.max() or 1.0))
-    axes[2].set_ylabel("pitch F0\n(Hz)")
-    axes[2].set_xlabel("time (minutes)")
-    fig.colorbar(sc, ax=axes[2], label="voicing", pad=0.01, fraction=0.05)
+    sc = axes[5].scatter(t_min, f0, s=13, c=voi, cmap="viridis", vmin=0.0, vmax=float(voi.max() or 1.0))
+    axes[5].set_ylabel("pitch F0 (Hz)\n(Heschl's)", fontsize=8, rotation=0, ha="right", va="center", color="0.25")
+    axes[5].set_xlabel("time (minutes)", fontsize=9, color="0.25")
+    fig.colorbar(sc, ax=axes[5], label="voicing", pad=0.01, fraction=0.05)
 
+    axes[0].set_title(
+        "affectlens mid-level tier — perceptual primitives over an 11-minute film, "
+        "each mapped to a named brain system",
+        loc="left", fontsize=11,
+    )
     for ax in axes:
-        ax.spines[["top", "right"]].set_visible(False)
+        ax.spines[["top", "right", "left"]].set_visible(False)
+        ax.spines["bottom"].set_color("0.8")
         ax.tick_params(labelsize=8, colors="0.35")
-    fig.tight_layout()
+        ax.margins(x=0.005)
     fig.savefig(OUT_DIR / "midlevel.png", dpi=150, bbox_inches="tight", facecolor="white")
     plt.close(fig)
 

@@ -12,11 +12,18 @@ All notable changes to this project are documented here. The format is based on
 - Low-level audio features: RMS loudness, zero-crossing rate, spectral centroid,
   spectral flux.
 - Mid-level perceptual features (`midlevel.py`), each mapping onto a named brain
-  system: optical-flow motion (`flow_magnitude`, `flow_looming` for approach /
-  recede), shot-boundary score (`scene_cut`), and pitch (`pitch_f0`, `voicing`).
-  They ride the existing decode passes (no extra dependency); optical flow is
-  gated by `ExtractionConfig.optical_flow`. `midlevel.py` also documents a
-  roadmap of further extractors mapped to their brain systems.
+  system and computed inside the existing decode passes (no extra dependency):
+  - optical-flow motion — `flow_magnitude` (energy, MT/V5), `flow_looming`
+    (approach/recede, MSTd), `flow_coherence` (global self-motion vs local object
+    motion, MST/CSv); gated by `ExtractionConfig.optical_flow`;
+  - `scene_cut` — shot-boundary score (hippocampal event segmentation);
+  - `spatial_detail` — high-spatial-frequency energy (V1 spatial-frequency channels);
+  - `chroma_rg`, `chroma_by` — signed cone-opponent colour axes (V4/VO);
+  - `pitch_f0`, `voicing` — fundamental frequency and periodicity (Heschl's gyrus);
+  - `spectral_flatness` — tonal vs. noisy texture (non-primary auditory cortex);
+  - `loudness_attack` — rectified loudness rise (brainstem acoustic-startle arc).
+  `midlevel.py` documents a roadmap of further extractors mapped to their brain
+  systems; the README carries the full tier table with references.
 - High-level semantic features from dialogue, with swappable transcriber and
   embedder interfaces (offline hashing / subtitle defaults; Whisper and
   sentence-transformers as optional backends).
@@ -37,9 +44,10 @@ All notable changes to this project are documented here. The format is based on
 - Sample-clip manifest (`examples/samples.json`) and fetcher
   (`scripts/fetch_samples.py`): real public-domain / CC test clips are linked
   by URL and downloaded locally, never committed.
-- README visuals: a Mermaid pipeline diagram plus figures generated from the
-  real sample footage (film frames over extracted feature time courses, and an
-  `encode` lag-scan demo) — regenerate with `scripts/make_readme_figures.py`.
+- README visuals: a pipeline diagram plus figures generated from the real
+  sample footage (film frames over extracted feature time courses, an `encode`
+  lag-scan demo, and the mid-level tier of perceptual primitives over the clip)
+  — regenerate with `scripts/make_readme_figures.py`.
 
 ### Fixed
 - `pipeline.extract_all` now derives each clip's bin grid from the decoded

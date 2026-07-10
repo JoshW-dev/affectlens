@@ -5,6 +5,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import cv2
 import numpy as np
 import pandas as pd
 
@@ -129,13 +130,76 @@ def test_midlevel_optical_flow_and_cut():
     from affectlens import midlevel
 
     img = (np.random.default_rng(1).random((72, 128)) * 255).astype(np.uint8)
-    mag_shift, _ = midlevel.optical_flow_features(img, np.roll(img, 3, axis=1))
-    mag_static, _ = midlevel.optical_flow_features(img, img)
+    mag_shift, _, coh_shift = midlevel.optical_flow_features(img, np.roll(img, 3, axis=1))
+    mag_static, _, _ = midlevel.optical_flow_features(img, img)
     assert mag_shift > mag_static  # motion registers, static ~0
     assert mag_static < 0.1
+    # A uniform horizontal shift is coherent (whole field moves together).
+    assert 0.0 <= coh_shift <= 1.0
+    assert coh_shift > 0.5
 
     assert midlevel.scene_cut_score(img, img) < 0.05  # same frame -> no cut
     assert midlevel.scene_cut_score(img, 255 - img) > 0.5  # very different -> cut
+
+
+def test_midlevel_flow_coherence_global_vs_local():
+    from affectlens import midlevel
+
+    rng = np.random.default_rng(2)
+    base = (rng.random((80, 128)) * 255).astype(np.uint8)
+    # Global pan: every pixel shifts the same way -> high coherence.
+    _, _, coh_global = midlevel.optical_flow_features(base, np.roll(base, 2, axis=1))
+    # Opposing halves shift in opposite directions -> they cancel in the mean
+    # vector, so the field is much less globally coherent.
+    scrambled = base.copy()
+    h = base.shape[0] // 2
+    scrambled[:h] = np.roll(base[:h], 3, axis=1)
+    scrambled[h:] = np.roll(base[h:], -3, axis=1)
+    _, _, coh_split = midlevel.optical_flow_features(base, scrambled)
+    assert coh_global > coh_split
+
+
+def test_midlevel_spatial_detail_and_chroma():
+    from affectlens import midlevel
+
+    rng = np.random.default_rng(3)
+    detailed = rng.random((64, 64)).astype(np.float32)  # fine texture
+    flat = np.full((64, 64), 0.5, np.float32)
+    blurred = cv2.GaussianBlur(detailed, (0, 0), 3)
+    assert midlevel.spatial_detail(flat) == 0.0  # no high-SF energy
+    assert midlevel.spatial_detail(detailed) > midlevel.spatial_detail(blurred)
+
+    # BGR frames: a red frame leans +rg and warm; a blue frame leans cool.
+    red = np.zeros((8, 8, 3), np.uint8)
+    red[..., 2] = 255
+    blue = np.zeros((8, 8, 3), np.uint8)
+    blue[..., 0] = 255
+    gray = np.full((8, 8, 3), 128, np.uint8)
+    rg_red, by_red = midlevel.chroma_opponency(red)
+    _, by_blue = midlevel.chroma_opponency(blue)
+    rg_gray, by_gray = midlevel.chroma_opponency(gray)
+    assert rg_red > 0.5 and by_red > 0.0  # red-dominant, warm
+    assert by_blue < 0.0  # blue-dominant, cool
+    assert abs(rg_gray) < 1e-6 and abs(by_gray) < 1e-6  # neutral
+
+
+def test_midlevel_flatness_and_attack():
+    from affectlens import midlevel
+
+    sr, frame = 16000, int(0.05 * 16000)
+    t = np.arange(frame) / sr
+    tone = np.sin(2 * np.pi * 220 * t) * np.hanning(frame)
+    noise = np.random.default_rng(4).normal(0, 1, frame) * np.hanning(frame)
+    flat_tone = midlevel.spectral_flatness(np.abs(np.fft.rfft(tone)))
+    flat_noise = midlevel.spectral_flatness(np.abs(np.fft.rfft(noise)))
+    assert flat_tone < flat_noise  # tonal is spectrally peaky, noise is flat
+    assert 0.0 <= flat_tone <= 1.0 and 0.0 <= flat_noise <= 1.0
+    assert midlevel.spectral_flatness(np.zeros(frame // 2 + 1)) == 0.0  # silence gate
+
+    # loudness_attack fires on rises only, never on the first window or on decays.
+    assert midlevel.loudness_attack(0.5, None) == 0.0  # first window
+    assert midlevel.loudness_attack(0.5, 0.05) > 0.0  # rising -> positive dB
+    assert midlevel.loudness_attack(0.05, 0.5) == 0.0  # falling -> rectified to 0
 
 
 def test_hashing_embedder_no_nan_on_cancelling_tokens():

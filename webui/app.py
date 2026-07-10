@@ -39,13 +39,19 @@ FEATURE_HELP = {
     "motion": "Mean absolute change between consecutive frames — how much is moving.",
     "flow_magnitude": "Optical-flow motion energy — how much is actually moving (truer than a frame difference).",
     "flow_looming": "Radial expansion of the optical flow — positive when the scene approaches the viewer.",
+    "flow_coherence": "How global the motion is (0-1) — ~1 for a camera pan (self-motion), ~0 for scattered object motion.",
     "scene_cut": "Shot-boundary score — spikes at hard cuts.",
+    "spatial_detail": "Fine-detail energy (variance of the Laplacian) — high for crisp frames, low under blur/defocus.",
+    "chroma_rg": "Red-vs-green colour balance (signed) — which way the palette leans, not how vivid.",
+    "chroma_by": "Blue-vs-yellow colour balance (signed) — positive = warm, negative = cool.",
     "rms": "Loudness (root-mean-square amplitude).",
     "zcr": "Zero-crossing rate — noisiness / high-frequency content (speech vs. tone).",
     "spectral_centroid": "Spectral 'brightness' — where the sound energy sits in frequency.",
     "spectral_flux": "How fast the spectrum changes — onsets and transitions.",
+    "spectral_flatness": "Tone vs. noise (0-1) — ~0 for a musical note, →1 for hiss/applause/static.",
     "pitch_f0": "Fundamental frequency (pitch) of the audio, in Hz (0 when unvoiced).",
     "voicing": "Periodicity strength (0-1) — how voiced/tonal the sound is.",
+    "loudness_attack": "Rise in loudness (dB) between windows — fires on hits/onsets, silent on decays.",
     "semantic": "Embedding of the dialogue text in a window (meaning, not pixels).",
 }
 _AGG = {"mean": "average over the bin", "std": "variation within the bin",
@@ -114,10 +120,13 @@ with st.sidebar:
     st.subheader("Feature families")
     use_visual = st.checkbox(
         "Visual", value=True,
-        help="luminance, contrast, colorfulness, saturation, edge density, motion")
+        help="low-level: luminance, contrast, colorfulness, saturation, edge density, "
+             "motion. mid-level: optical-flow magnitude/looming/coherence, scene cuts, "
+             "spatial detail, colour opponency.")
     use_audio = st.checkbox(
         "Audio", value=True,
-        help="loudness (RMS), zero-crossing rate, spectral centroid, spectral flux")
+        help="low-level: loudness (RMS), zero-crossing rate, spectral centroid, spectral "
+             "flux. mid-level: pitch + voicing, spectral flatness, loudness attack.")
     use_semantic = st.checkbox(
         "Semantic", value=False,
         help="Embeddings of dialogue text — needs a .srt/.vtt subtitle sidecar "
