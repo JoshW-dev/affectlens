@@ -12,12 +12,14 @@ fits cross-validated linear models that (a) predict continuous ratings or (b)
 predict a separately recorded signal with a lag search — reporting held-out
 prediction accuracy and *which features the response leans on*.
 
-![Real frames from an 11-minute film above the feature time courses affectlens extracted from it](docs/images/features.png)
+![Frames from an 11-minute film above four higher-level feature time courses — motion energy, scene cuts, colour warmth, and sound onsets — that affectlens extracted from it](docs/images/features.png)
 
-<sub>Frames and low-level feature time courses from [*Elephants Dream*](https://orange.blender.org/)
-(© 2006 Blender Foundation, CC-BY-2.5), one of the linked sample clips. Fetch
-them with `python scripts/fetch_samples.py`; regenerate every figure in this
-README with `python scripts/make_readme_figures.py`.</sub>
+<sub>Frames above mid-level feature time courses — motion energy (MT/V5), scene
+cuts (hippocampus), colour warmth (V4/VO), sound onsets (startle) — from
+[*Elephants Dream*](https://orange.blender.org/) (© 2006 Blender Foundation,
+CC-BY-2.5), one of the linked sample clips. Fetch them with `python
+scripts/fetch_samples.py`; regenerate every figure in this README with `python
+scripts/make_readme_figures.py`.</sub>
 
 ---
 

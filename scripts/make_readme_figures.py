@@ -11,8 +11,9 @@ Then:
 
     python scripts/make_readme_figures.py
 
-Figure 1 (features.png): real frames from Elephants Dream above the feature
-time courses extracted from the same clip — what `extract` produces.
+Figure 1 (features.png): real frames from Elephants Dream above four
+higher-level feature time courses (motion energy, scene cuts, colour warmth,
+sound onsets), each labelled with the brain system it probes — the hero.
 
 Figure 2 (encoding.png): the `encode` workflow on a demo signal fabricated
 from the clip's own loudness delayed by one bin, showing the lag scan
@@ -66,13 +67,17 @@ def make_features_figure(X: pd.DataFrame) -> None:
     frames = [grab_frame(cap, t) for t in FRAME_TIMES_S]
     cap.release()
 
+    # Higher-level features that visibly track the frames above: real motion
+    # energy, shot boundaries, colour warmth, and sound onsets — each labelled
+    # with the brain system it is meant to probe (see the mid-level tier).
     curves = [
-        ("visual__luminance_mean", "brightness", "#e8a33d"),
-        ("visual__motion_mean", "motion", "#c0504d"),
-        ("audio__rms_mean", "loudness (RMS)", "#4472c4"),
+        ("visual__flow_magnitude_mean", "motion energy\n(MT / V5)", "#c0504d"),
+        ("visual__scene_cut_max", "scene cuts\n(hippocampus)", "#4472c4"),
+        ("visual__chroma_by_mean", "colour warmth\n(V4 / VO)", "#c9820a"),
+        ("audio__loudness_attack_mean", "sound onsets\n(startle)", "#2e8b7f"),
     ]
 
-    fig = plt.figure(figsize=(12, 6.2))
+    fig = plt.figure(figsize=(12, 7.4))
     gs = fig.add_gridspec(
         len(curves) + 1, len(frames),
         height_ratios=[1.9] + [1] * len(curves), hspace=0.35, wspace=0.04,
