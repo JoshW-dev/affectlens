@@ -23,6 +23,10 @@ perceptual primitives (flow magnitude, flow coherence, scene cuts, colour
 warmth, spectral flatness, and pitch F0 shaded by voicing), each labelled
 with the brain system it is meant to probe.
 
+Figure 4 (feature_matrix.png): every base feature over the clip as one
+z-scored design matrix (a heatmap of 21 features x time), grouped by tier —
+the whole feature space `extract` produces, at a glance.
+
 Elephants Dream is (c) 2006 Blender Foundation / Netherlands Media Art
 Institute, CC-BY-2.5 — the README credits it alongside the figures.
 """
@@ -198,6 +202,81 @@ def make_midlevel_figure(X: pd.DataFrame) -> None:
     plt.close(fig)
 
 
+# Every base (mean-aggregated) feature, grouped by tier, for the feature-matrix
+# heatmap. scene_cut uses its _max column (the shot-boundary event, not its mean).
+MATRIX_GROUPS = [
+    ("Visual · low-level", [
+        ("visual__luminance_mean", "luminance"),
+        ("visual__contrast_mean", "contrast"),
+        ("visual__colorfulness_mean", "colorfulness"),
+        ("visual__saturation_mean", "saturation"),
+        ("visual__edge_density_mean", "edge density"),
+        ("visual__motion_mean", "motion"),
+    ]),
+    ("Visual · mid-level", [
+        ("visual__flow_magnitude_mean", "flow magnitude"),
+        ("visual__flow_looming_mean", "flow looming"),
+        ("visual__flow_coherence_mean", "flow coherence"),
+        ("visual__scene_cut_max", "scene cut"),
+        ("visual__spatial_detail_mean", "spatial detail"),
+        ("visual__chroma_rg_mean", "chroma R–G"),
+        ("visual__chroma_by_mean", "chroma B–Y"),
+    ]),
+    ("Audio · low-level", [
+        ("audio__rms_mean", "RMS loudness"),
+        ("audio__zcr_mean", "zero-crossing rate"),
+        ("audio__spectral_centroid_mean", "spectral centroid"),
+        ("audio__spectral_flux_mean", "spectral flux"),
+    ]),
+    ("Audio · mid-level", [
+        ("audio__pitch_f0_mean", "pitch F0"),
+        ("audio__voicing_mean", "voicing"),
+        ("audio__spectral_flatness_mean", "spectral flatness"),
+        ("audio__loudness_attack_mean", "loudness attack"),
+    ]),
+]
+
+
+def make_feature_matrix_figure(X: pd.DataFrame) -> None:
+    """Every feature over time as one z-scored design matrix, grouped by tier —
+    the whole feature space at a glance (what `extract` hands the encoding model).
+    """
+    t = X.index.to_numpy() / 60.0
+    counts = [len(feats) for _, feats in MATRIX_GROUPS]
+    fig, axes = plt.subplots(
+        len(MATRIX_GROUPS), 1, sharex=True, figsize=(11, 8.8),
+        gridspec_kw={"height_ratios": counts, "hspace": 0.22},
+    )
+    im = None
+    for ax, (title, feats) in zip(axes, MATRIX_GROUPS, strict=True):
+        names = [nm for _, nm in feats]
+        rows = np.vstack([zscore(X[col]).to_numpy() for col, _ in feats])
+        im = ax.imshow(
+            rows, aspect="auto", cmap="RdBu_r", vmin=-2.5, vmax=2.5,
+            interpolation="nearest",
+            extent=[t[0], t[-1], len(names) - 0.5, -0.5],
+        )
+        ax.set_yticks(range(len(names)))
+        ax.set_yticklabels(names, fontsize=8, color="0.2")
+        ax.set_title(title, loc="left", fontsize=9.5, color="0.25", pad=3)
+        ax.tick_params(length=0)
+        for spine in ax.spines.values():
+            spine.set_visible(False)
+    axes[-1].set_xlabel("time (minutes)", fontsize=9, color="0.25")
+    axes[-1].tick_params(labelsize=8, colors="0.35", length=3)
+
+    cbar = fig.colorbar(im, ax=axes, fraction=0.022, pad=0.015)
+    cbar.set_label("z-scored value (per feature)", fontsize=8, color="0.3")
+    cbar.ax.tick_params(labelsize=7, colors="0.4")
+    fig.suptitle(
+        "affectlens feature matrix — all 21 features (visual + audio, low- and "
+        "mid-level) over an 11-minute film",
+        fontsize=11.5, x=0.5, y=0.94,
+    )
+    fig.savefig(OUT_DIR / "feature_matrix.png", dpi=150, bbox_inches="tight", facecolor="white")
+    plt.close(fig)
+
+
 def main() -> None:
     for path, hint in ((CLIP, "python scripts/fetch_samples.py"), (FEATURES, "affectlens extract --clips examples/samples --out out/")):
         if not path.exists():
@@ -207,9 +286,11 @@ def main() -> None:
     make_features_figure(X)
     make_encoding_figure(X)
     make_midlevel_figure(X)
+    make_feature_matrix_figure(X)
     print(f"wrote {OUT_DIR / 'features.png'}")
     print(f"wrote {OUT_DIR / 'encoding.png'}")
     print(f"wrote {OUT_DIR / 'midlevel.png'}")
+    print(f"wrote {OUT_DIR / 'feature_matrix.png'}")
 
 
 if __name__ == "__main__":

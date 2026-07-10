@@ -88,6 +88,16 @@ Within each time bin every stream is aggregated with **mean, std, and max**, so 
 coarse grid still carries sharp within-bin events (a surprise, an energy spike):
 the `*_max` / `*_std` columns retain them.
 
+Extraction turns each clip into exactly this **design matrix** — every feature as
+a time course on one shared grid, the input both workflows consume:
+
+![feature matrix: all 21 features over the film as a z-scored heatmap grouped by tier](docs/images/feature_matrix.png)
+
+<sub>All 21 base features (mean-aggregated; `scene_cut` at its within-bin max),
+z-scored per feature, over *Elephants Dream*. This is the whole feature space
+`extract` produces — low- and mid-level, visual and audio — and the matrix the
+baseline and encoding models read row-for-row against your target.</sub>
+
 ### The mid-level tier
 
 Between raw physical statistics and dialogue meaning sits a band of **perceptual

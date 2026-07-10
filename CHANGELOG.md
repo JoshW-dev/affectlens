@@ -46,8 +46,9 @@ All notable changes to this project are documented here. The format is based on
   by URL and downloaded locally, never committed.
 - README visuals: a pipeline diagram plus figures generated from the real
   sample footage (film frames over extracted feature time courses, an `encode`
-  lag-scan demo, and the mid-level tier of perceptual primitives over the clip)
-  — regenerate with `scripts/make_readme_figures.py`.
+  lag-scan demo, the mid-level tier of perceptual primitives, and a full
+  feature-matrix heatmap of every feature over time) — regenerate with
+  `scripts/make_readme_figures.py`.
 
 ### Fixed
 - `pipeline.extract_all` now derives each clip's bin grid from the decoded
