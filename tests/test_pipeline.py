@@ -109,6 +109,35 @@ def test_end_to_end_pipeline_recovers_signal():
     assert result.mean_r > 0.3, f"mean_r too low: {result.mean_r}"
 
 
+def test_midlevel_pitch_recovers_tone():
+    from affectlens import midlevel
+
+    sr, frame = 16000, int(0.05 * 16000)
+    t = np.arange(frame) / sr
+    tone = np.sin(2 * np.pi * 200 * t) * np.hanning(frame)
+    f0, voicing = midlevel.pitch_from_spectrum(np.abs(np.fft.rfft(tone)), sr, frame)
+    assert abs(f0 - 200) < 10  # recovers the fundamental
+    assert voicing > 0.5
+
+    noise = np.random.default_rng(0).normal(0, 1, frame) * np.hanning(frame)
+    f0n, voicingn = midlevel.pitch_from_spectrum(np.abs(np.fft.rfft(noise)), sr, frame)
+    assert f0n == 0.0  # unvoiced -> no pitch
+    assert voicingn < 0.5
+
+
+def test_midlevel_optical_flow_and_cut():
+    from affectlens import midlevel
+
+    img = (np.random.default_rng(1).random((72, 128)) * 255).astype(np.uint8)
+    mag_shift, _ = midlevel.optical_flow_features(img, np.roll(img, 3, axis=1))
+    mag_static, _ = midlevel.optical_flow_features(img, img)
+    assert mag_shift > mag_static  # motion registers, static ~0
+    assert mag_static < 0.1
+
+    assert midlevel.scene_cut_score(img, img) < 0.05  # same frame -> no cut
+    assert midlevel.scene_cut_score(img, 255 - img) > 0.5  # very different -> cut
+
+
 def test_hashing_embedder_no_nan_on_cancelling_tokens():
     from affectlens.highlevel import HashingEmbedder
 

@@ -152,6 +152,34 @@ def make_encoding_figure(X: pd.DataFrame) -> None:
     plt.close(fig)
 
 
+def make_midlevel_figure(X: pd.DataFrame) -> None:
+    """Three mid-level feature time courses on the film: motion, cuts, pitch."""
+    t_min = X.index.to_numpy() / 60.0
+    fig, axes = plt.subplots(3, 1, figsize=(11, 4.4), sharex=True)
+
+    axes[0].plot(t_min, X["visual__flow_magnitude_mean"], color="#c0504d", lw=1.0)
+    axes[0].set_ylabel("optical-flow\nmotion")
+    axes[0].set_title("affectlens mid-level features — motion, scene cuts, and pitch over time",
+                      loc="left", fontsize=11)
+
+    axes[1].plot(t_min, X["visual__scene_cut_max"], color="#4472c4", lw=1.0)
+    axes[1].set_ylabel("scene-cut\nscore")
+
+    f0 = X["audio__pitch_f0_mean"].to_numpy()
+    voi = X["audio__voicing_mean"].to_numpy()
+    sc = axes[2].scatter(t_min, f0, s=14, c=voi, cmap="viridis", vmin=0.0, vmax=float(voi.max() or 1.0))
+    axes[2].set_ylabel("pitch F0\n(Hz)")
+    axes[2].set_xlabel("time (minutes)")
+    fig.colorbar(sc, ax=axes[2], label="voicing", pad=0.01, fraction=0.05)
+
+    for ax in axes:
+        ax.spines[["top", "right"]].set_visible(False)
+        ax.tick_params(labelsize=8, colors="0.35")
+    fig.tight_layout()
+    fig.savefig(OUT_DIR / "midlevel.png", dpi=150, bbox_inches="tight", facecolor="white")
+    plt.close(fig)
+
+
 def main() -> None:
     for path, hint in ((CLIP, "python scripts/fetch_samples.py"), (FEATURES, "affectlens extract --clips examples/samples --out out/")):
         if not path.exists():
@@ -160,8 +188,10 @@ def main() -> None:
     X = pd.read_csv(FEATURES, index_col=0)
     make_features_figure(X)
     make_encoding_figure(X)
+    make_midlevel_figure(X)
     print(f"wrote {OUT_DIR / 'features.png'}")
     print(f"wrote {OUT_DIR / 'encoding.png'}")
+    print(f"wrote {OUT_DIR / 'midlevel.png'}")
 
 
 if __name__ == "__main__":

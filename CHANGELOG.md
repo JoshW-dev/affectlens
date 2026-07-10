@@ -11,6 +11,12 @@ All notable changes to this project are documented here. The format is based on
   edge density, motion.
 - Low-level audio features: RMS loudness, zero-crossing rate, spectral centroid,
   spectral flux.
+- Mid-level perceptual features (`midlevel.py`), each mapping onto a named brain
+  system: optical-flow motion (`flow_magnitude`, `flow_looming` for approach /
+  recede), shot-boundary score (`scene_cut`), and pitch (`pitch_f0`, `voicing`).
+  They ride the existing decode passes (no extra dependency); optical flow is
+  gated by `ExtractionConfig.optical_flow`. `midlevel.py` also documents a
+  roadmap of further extractors mapped to their brain systems.
 - High-level semantic features from dialogue, with swappable transcriber and
   embedder interfaces (offline hashing / subtitle defaults; Whisper and
   sentence-transformers as optional backends).

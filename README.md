@@ -176,11 +176,44 @@ print(enc.r, enc.weights[:5])     # held-out r, and the features the response le
 | --- | --- | --- |
 | Visual (low-level) | luminance, contrast, colorfulness, saturation, edge density, motion | `lowlevel.py` |
 | Audio (low-level) | loudness (RMS), zero-crossing rate, spectral centroid, spectral flux | `lowlevel.py` |
+| Visual / audio (mid-level) | optical-flow motion (magnitude, looming), scene cuts, pitch (F0) + voicing | `midlevel.py` |
 | Semantic (high-level) | text features from dialogue (default: hashed bag-of-words; optional sentence-transformer embeddings for true semantic similarity) | `highlevel.py` |
 
 Within each rating bin every stream is aggregated with **mean, std, and max**, so
 a coarse time grid still carries sharp within-bin events (a surprise, an energy
 spike) — the `*_max` / `*_std` columns retain them.
+
+### Mid-level features — the band in between
+
+Between raw physical stats and dialogue meaning sits a band of **perceptual
+primitives** that each map onto a *named* brain system — which is what makes a
+feature-to-signal correlation interpretable rather than diffuse. affectlens ships
+three to start, all computed inside the existing decode passes (no extra
+dependency):
+
+| Feature | What it captures | Maps to |
+| --- | --- | --- |
+| `flow_magnitude`, `flow_looming` | real motion energy and radial expansion (approach/recede) from dense optical flow — a truer motion signal than a frame difference | MT / V5, MST |
+| `scene_cut` | shot-boundary score, spiking at hard cuts | event segmentation |
+| `pitch_f0`, `voicing` | fundamental frequency and periodicity strength of the audio | Heschl's gyrus, prosodic STG |
+
+![mid-level feature time courses on a real film clip: optical-flow motion, scene cuts, and pitch over time](docs/images/midlevel.png)
+
+**This band is wide open, and that's the point.** Each idea below is one small
+extractor (a function returning a `t`-column DataFrame); the heavier ones would
+ship as optional extras. A sample of what's tractable and where it lands:
+
+- **Visual:** face presence / count / size (→ FFA/OFA/STS), facial-motion
+  dynamism (→ posterior STS), scene/place category (→ PPA), animacy occupancy
+  (→ ventral temporal).
+- **Audio:** speech envelope / amplitude modulation (→ STG speech-tracking),
+  voice-activity detection (→ temporal voice areas), loudness transients
+  (→ auditory + amygdala), tempo / beat / onset density (→ auditory + SMA).
+- **Semantic / cross-modal:** word surprisal (→ language network / N400), topic
+  and narrative-boundary segmentation (→ hippocampus / DMN), dialogue sentiment
+  (→ vmPFC / OFC).
+
+See [`midlevel.py`](src/affectlens/midlevel.py) for the full roadmap.
 
 **Where does affect/emotion come in?** affectlens does not read emotion off the
 pixels. Affect enters two ways, both honest: as **semantic** regressors

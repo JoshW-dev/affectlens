@@ -37,5 +37,9 @@ class ExtractionConfig:
     # Which low-level feature families to compute.
     visual: bool = True
     audio: bool = True
+    # Mid-level optical-flow motion (Farneback). The other mid-level features
+    # (pitch, scene cuts) ride existing passes and are always on; flow is the
+    # one that adds real compute, so it gets its own switch.
+    optical_flow: bool = True
     # Aggregation statistics applied within each rating bin.
     bin_aggregations: tuple[str, ...] = field(default_factory=lambda: ("mean", "std", "max"))

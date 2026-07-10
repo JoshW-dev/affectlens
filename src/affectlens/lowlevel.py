@@ -5,6 +5,11 @@ interpretable baseline that is known to explain real variance in perceptual and
 early sensory responses. Each extractor returns a tidy DataFrame with a ``t``
 (seconds) column plus one column per feature, sampled on its own clock;
 ``align.py`` bins these onto the rating grid.
+
+A few **mid-level** features (optical-flow motion, pitch, scene cuts; see
+``midlevel.py``) are computed inside these same decode loops -- they ride the
+frame/window passes we already make, so they cost almost nothing extra -- and
+are returned in the same visual/audio streams.
 """
 
 from __future__ import annotations
@@ -18,6 +23,7 @@ import imageio_ffmpeg
 import numpy as np
 import pandas as pd
 
+from . import midlevel
 from .config import ExtractionConfig
 
 
@@ -37,8 +43,11 @@ def _colorfulness(bgr: np.ndarray) -> float:
 def extract_visual(path: str | Path, config: ExtractionConfig | None = None) -> pd.DataFrame:
     """Per-sampled-frame visual features.
 
-    Columns: t, luminance, contrast, colorfulness, saturation, edge_density,
-    motion (mean absolute inter-frame difference of luminance).
+    Low-level columns: t, luminance, contrast, colorfulness, saturation,
+    edge_density, motion (mean absolute inter-frame difference of luminance).
+    Mid-level columns (see ``midlevel.py``): flow_magnitude and flow_looming
+    (dense optical flow; only when ``config.optical_flow``), and scene_cut
+    (shot-boundary score).
     """
     config = config or ExtractionConfig()
     cap = cv2.VideoCapture(str(path))
@@ -51,6 +60,8 @@ def extract_visual(path: str | Path, config: ExtractionConfig | None = None) -> 
 
     rows: list[dict] = []
     prev_gray: np.ndarray | None = None
+    prev_gray_u8: np.ndarray | None = None
+    prev_small: np.ndarray | None = None
     idx = 0
     while True:
         ok, frame = cap.read()
@@ -60,12 +71,21 @@ def extract_visual(path: str | Path, config: ExtractionConfig | None = None) -> 
             idx += 1
             continue
         t = idx / native_fps if native_fps else idx / sample_fps
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY).astype(np.float32) / 255.0
+        gray_u8 = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        gray = gray_u8.astype(np.float32) / 255.0
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
         edges = cv2.Canny(frame, 100, 200)
-        motion = (
-            float(np.mean(np.abs(gray - prev_gray))) if prev_gray is not None else 0.0
+
+        # Mid-level: real motion energy + looming (optical flow) and shot cuts.
+        small = midlevel.to_flow_gray(gray_u8) if config.optical_flow else None
+        if config.optical_flow and prev_small is not None:
+            flow_magnitude, flow_looming = midlevel.optical_flow_features(prev_small, small)
+        else:
+            flow_magnitude, flow_looming = 0.0, 0.0
+        scene_cut = (
+            midlevel.scene_cut_score(prev_gray_u8, gray_u8) if prev_gray_u8 is not None else 0.0
         )
+
         rows.append(
             {
                 "t": t,
@@ -74,10 +94,13 @@ def extract_visual(path: str | Path, config: ExtractionConfig | None = None) -> 
                 "colorfulness": _colorfulness(frame),
                 "saturation": float(hsv[..., 1].mean()) / 255.0,
                 "edge_density": float((edges > 0).mean()),
-                "motion": motion,
+                "motion": float(np.mean(np.abs(gray - prev_gray))) if prev_gray is not None else 0.0,
+                "flow_magnitude": flow_magnitude,
+                "flow_looming": flow_looming,
+                "scene_cut": scene_cut,
             }
         )
-        prev_gray = gray
+        prev_gray, prev_gray_u8, prev_small = gray, gray_u8, small
         idx += 1
     cap.release()
 
@@ -120,13 +143,16 @@ def _decode_audio(path: str | Path, sample_rate: int) -> np.ndarray:
 def extract_audio(path: str | Path, config: ExtractionConfig | None = None) -> pd.DataFrame:
     """Framewise audio features.
 
-    Columns: t, rms (loudness proxy), zcr (zero-crossing rate), spectral_centroid,
-    spectral_flux. Returns an empty frame (with columns) when there is no audio.
+    Low-level columns: t, rms (loudness proxy), zcr (zero-crossing rate),
+    spectral_centroid, spectral_flux. Mid-level columns (see ``midlevel.py``):
+    pitch_f0 (fundamental frequency in Hz, 0 when unvoiced) and voicing
+    (periodicity strength, 0-1). Returns an empty frame (with columns) when
+    there is no audio.
     """
     config = config or ExtractionConfig()
     sr = config.audio_sample_rate
     y = _decode_audio(path, sr)
-    cols = ["t", "rms", "zcr", "spectral_centroid", "spectral_flux"]
+    cols = ["t", "rms", "zcr", "spectral_centroid", "spectral_flux", "pitch_f0", "voicing"]
     if y.size == 0:
         return pd.DataFrame(columns=cols)
 
@@ -147,6 +173,8 @@ def extract_audio(path: str | Path, config: ExtractionConfig | None = None) -> p
         mag = np.abs(np.fft.rfft(win))
         centroid = float(np.sum(freqs * mag) / (np.sum(mag) + 1e-9))
         flux = float(np.sqrt(np.sum((mag - prev_mag) ** 2))) if prev_mag is not None else 0.0
+        # Mid-level: pitch + voicing, reusing the magnitude spectrum.
+        pitch_f0, voicing = midlevel.pitch_from_spectrum(mag, sr, frame)
         rows.append(
             {
                 "t": start / sr,
@@ -154,6 +182,8 @@ def extract_audio(path: str | Path, config: ExtractionConfig | None = None) -> p
                 "zcr": zcr,
                 "spectral_centroid": centroid,
                 "spectral_flux": flux,
+                "pitch_f0": pitch_f0,
+                "voicing": voicing,
             }
         )
         prev_mag = mag
