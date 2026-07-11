@@ -7,10 +7,12 @@ early sensory responses. Each extractor returns a tidy DataFrame with a ``t``
 ``align.py`` bins these onto the rating grid.
 
 A band of **mid-level** features (optical-flow motion/looming/coherence, scene
-cuts, spatial-frequency detail, colour opponency; pitch, spectral flatness,
-loudness attack; see ``midlevel.py``) is computed inside these same decode loops
--- they ride the frame/window passes we already make, so they cost almost
-nothing extra -- and are returned in the same visual/audio streams.
+cuts, spatial-frequency detail, colour opponency, faces; pitch, spectral
+flatness, loudness attack, voice-band energy; see ``midlevel.py``) is computed
+inside these same decode loops and returned in the same visual/audio streams.
+Most ride the frame/window passes we already make, so they cost almost nothing
+extra; face detection additionally runs a small bundled model and is gated by
+``config.detect_faces``.
 """
 
 from __future__ import annotations
@@ -49,7 +51,9 @@ def extract_visual(path: str | Path, config: ExtractionConfig | None = None) -> 
     Mid-level columns (see ``midlevel.py``): flow_magnitude, flow_looming, and
     flow_coherence (dense optical flow; only when ``config.optical_flow``),
     scene_cut (shot-boundary score), spatial_detail (high-spatial-frequency
-    energy), and chroma_rg / chroma_by (signed cone-opponent colour axes).
+    energy), chroma_rg / chroma_by (signed cone-opponent colour axes), and
+    face_count / face_prominence (YuNet; only when ``config.detect_faces`` and the
+    bundled model is available).
     """
     config = config or ExtractionConfig()
     cap = cv2.VideoCapture(str(path))
@@ -59,6 +63,9 @@ def extract_visual(path: str | Path, config: ExtractionConfig | None = None) -> 
     native_fps = cap.get(cv2.CAP_PROP_FPS) or 0.0
     sample_fps = config.visual_sample_fps or native_fps or 8.0
     frame_step = max(1, int(round(native_fps / sample_fps))) if native_fps else 1
+
+    # One face detector for the whole clip (None if disabled or model missing).
+    face_det = midlevel.load_face_detector() if config.detect_faces else None
 
     rows: list[dict] = []
     prev_gray: np.ndarray | None = None
@@ -92,6 +99,16 @@ def extract_visual(path: str | Path, config: ExtractionConfig | None = None) -> 
         )
         chroma_rg, chroma_by = midlevel.chroma_opponency(frame)
 
+        # Faces (FFA/OFA/STS): count and prominence of the largest face, when
+        # detection is enabled and the bundled YuNet model loaded.
+        if face_det is not None:
+            fh, fw = gray_u8.shape
+            face_det.setInputSize((fw, fh))
+            _, faces = face_det.detect(frame)
+            face_count, face_prominence = midlevel.face_features(faces, fw, fh)
+        else:
+            face_count, face_prominence = 0.0, 0.0
+
         rows.append(
             {
                 "t": t,
@@ -108,6 +125,8 @@ def extract_visual(path: str | Path, config: ExtractionConfig | None = None) -> 
                 "spatial_detail": midlevel.spatial_detail(gray),
                 "chroma_rg": chroma_rg,
                 "chroma_by": chroma_by,
+                "face_count": face_count,
+                "face_prominence": face_prominence,
             }
         )
         prev_gray, prev_gray_u8, prev_small = gray, gray_u8, small
@@ -156,15 +175,16 @@ def extract_audio(path: str | Path, config: ExtractionConfig | None = None) -> p
     Low-level columns: t, rms (loudness proxy), zcr (zero-crossing rate),
     spectral_centroid, spectral_flux. Mid-level columns (see ``midlevel.py``):
     pitch_f0 (fundamental frequency in Hz, 0 when unvoiced), voicing
-    (periodicity strength, 0-1), spectral_flatness (tonal vs noisy, 0-1), and
-    loudness_attack (rectified positive rise in loudness, dB). Returns an empty
-    frame (with columns) when there is no audio.
+    (periodicity strength, 0-1), spectral_flatness (tonal vs noisy, 0-1),
+    loudness_attack (rectified positive rise in loudness, dB), and
+    voice_band_ratio (speech-band energy fraction, 0-1). Returns an empty frame
+    (with columns) when there is no audio.
     """
     config = config or ExtractionConfig()
     sr = config.audio_sample_rate
     y = _decode_audio(path, sr)
     cols = ["t", "rms", "zcr", "spectral_centroid", "spectral_flux", "pitch_f0",
-            "voicing", "spectral_flatness", "loudness_attack"]
+            "voicing", "spectral_flatness", "loudness_attack", "voice_band_ratio"]
     if y.size == 0:
         return pd.DataFrame(columns=cols)
 
@@ -186,8 +206,8 @@ def extract_audio(path: str | Path, config: ExtractionConfig | None = None) -> p
         mag = np.abs(np.fft.rfft(win))
         centroid = float(np.sum(freqs * mag) / (np.sum(mag) + 1e-9))
         flux = float(np.sqrt(np.sum((mag - prev_mag) ** 2))) if prev_mag is not None else 0.0
-        # Mid-level: pitch + voicing and spectral flatness reuse the magnitude
-        # spectrum; the loudness attack reuses the RMS across windows.
+        # Mid-level: pitch + voicing, spectral flatness, and voice-band energy
+        # reuse the magnitude spectrum; the loudness attack reuses the RMS.
         pitch_f0, voicing = midlevel.pitch_from_spectrum(mag, sr, frame)
         rows.append(
             {
@@ -200,6 +220,7 @@ def extract_audio(path: str | Path, config: ExtractionConfig | None = None) -> p
                 "voicing": voicing,
                 "spectral_flatness": midlevel.spectral_flatness(mag),
                 "loudness_attack": midlevel.loudness_attack(rms, prev_rms),
+                "voice_band_ratio": midlevel.voice_band_ratio(mag, freqs),
             }
         )
         prev_mag = mag

@@ -3,9 +3,9 @@
 The low-level extractors (``lowlevel.py``) report physical signal statistics
 (luminance, RMS level, mean frame-difference). The semantic path
 (``highlevel.py``) reports what the *dialogue* means. In between sits a rich,
-under-used band of **perceptual and social primitives** -- motion structure,
-pitch, scene cuts, spectral texture, colour opponency -- that are neither raw
-pixels/samples nor full meaning.
+under-used band of **perceptual and social primitives** (motion structure, pitch,
+scene cuts, spectral texture, colour opponency, faces, voice) that are neither
+raw pixels/samples nor full meaning.
 
 That mid band is worth its own tier because each feature tends to map onto a
 *named, testable* brain system, which makes a feature-to-signal correlation
@@ -16,34 +16,39 @@ interpretable rather than diffuse:
     optical-flow coherence   -> MT surround-antagonism vs MST / CSv egomotion
     spatial detail (SF)      -> V1 spatial-frequency channels
     chroma opponency         -> cone-opponent L-M / S axes (V1 -> V4 / VO glob cells)
+    faces (count / size)     -> fusiform & occipital face areas (FFA / OFA / STS)
     scene / shot cuts        -> hippocampal / posterior-medial event segmentation
     pitch (F0) / voicing     -> pitch region at the anterolateral Heschl's border
     loudness attack          -> brainstem acoustic-startle arc (PnC), amygdala-gated
     spectral flatness        -> non-primary auditory harmonicity (tone vs noise)
+    voice-band energy        -> temporal voice areas / STG (speech-presence proxy)
 
-Two of these mappings are deliberately loose, and the README says so in the
-open: "warm vs cool" is a perceptual grouping imposed on the cone-opponent axes,
-not a canonical neural dimension; and spectral flatness has no dedicated cortical
-region, standing in as an indirect proxy for harmonicity. Citations for every
-mapping live in the README's References section.
+A few of these mappings are deliberately loose, and the README says so in the
+open: "warm vs cool" colour is a perceptual grouping imposed on the cone-opponent
+axes, not a canonical neural dimension; spectral flatness has no dedicated
+cortical region, standing in as an indirect proxy for harmonicity; and voice-band
+energy is a speech-band energy proxy, not a trained voice-activity detector.
+Citations for every mapping live in the README's References section.
 
-Everything here is pure numpy / OpenCV (no extra dependency) and rides the
-decode passes ``lowlevel.py`` already makes, so the whole tier is close to free:
-each helper is small, takes something the decode loop already has in hand (a
-grayscale frame, a BGR frame, an rfft magnitude spectrum, a flow field), and
-returns plain floats that flow through ``align.py`` like any other feature.
+Almost everything here is pure numpy / OpenCV and rides the decode passes
+``lowlevel.py`` already makes, so those primitives are close to free. The one
+exception is **face detection**, which runs a small bundled YuNet model through
+OpenCV's DNN (still no extra pip dependency, just a 0.2 MB model file) and so is
+gated by ``config.detect_faces``. Each helper is small, takes something the decode
+loop already has in hand (a grayscale frame, a BGR frame, an rfft magnitude
+spectrum, a flow field), and returns plain floats that flow through ``align.py``
+like any other feature.
 
 Ideas for more (each is one extractor returning a ``t``-column DataFrame; heavier
-ones would ship as optional extras, e.g. ``affectlens[faces]``):
+ones would ship as optional extras):
 
   VISUAL
-    - face presence / count / size            -> FFA / OFA / STS   (mediapipe / YuNet)
-    - facial-motion dynamism (mouth, blinks)  -> posterior STS      (rides a face mesh)
+    - facial-motion dynamism (mouth, blinks)  -> posterior STS      (rides a face box)
     - scene / place category (indoor/outdoor) -> PPA / RSC / OPA    (Places365)
     - animacy occupancy (animate vs object)   -> ventral temporal   (a COCO detector)
   AUDIO
     - speech envelope / amplitude modulation  -> STG speech-tracking (numpy Hilbert)
-    - voice-activity / speech presence         -> temporal voice areas (webrtcvad)
+    - trained voice-activity detection         -> temporal voice areas (Silero / webrtcvad)
     - tempo / beat / onset density             -> auditory + SMA / basal ganglia
   SEMANTIC / CROSS-MODAL
     - word surprisal (LM -log p)               -> language network / N400 (distilgpt2)
@@ -55,6 +60,8 @@ See the README "Mid-level features" section for the full roadmap and references.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import cv2
 import numpy as np
 
@@ -62,6 +69,9 @@ import numpy as np
 # need full resolution for a global motion-energy summary, and shrinking keeps
 # it fast.
 FLOW_WIDTH = 128
+
+# Bundled YuNet face-detection model (see models/NOTICE for attribution).
+FACE_MODEL_PATH = Path(__file__).resolve().parent / "models" / "face_detection_yunet.onnx"
 
 
 # --------------------------------------------------------------------------- #
@@ -159,6 +169,43 @@ def scene_cut_score(prev_gray_u8: np.ndarray, cur_gray_u8: np.ndarray) -> float:
 
 
 # --------------------------------------------------------------------------- #
+# Visual -- face detection (model-backed, gated by config.detect_faces)
+# --------------------------------------------------------------------------- #
+def load_face_detector(score_threshold: float = 0.6):
+    """Return a YuNet face detector, or ``None`` if unavailable.
+
+    Uses OpenCV's built-in ``FaceDetectorYN`` (DNN, no extra pip dependency) with
+    the bundled model. Returns ``None`` when the OpenCV build lacks the class or
+    the model file is missing, so callers can degrade gracefully. The input size
+    is a placeholder; callers set it per frame with ``detector.setInputSize``.
+    """
+    if not hasattr(cv2, "FaceDetectorYN") or not FACE_MODEL_PATH.exists():
+        return None
+    try:
+        return cv2.FaceDetectorYN.create(
+            str(FACE_MODEL_PATH), "", (320, 240), score_threshold, 0.3, 5000
+        )
+    except cv2.error:
+        return None
+
+
+def face_features(faces: np.ndarray | None, frame_w: int, frame_h: int) -> tuple[float, float]:
+    """Summarise YuNet detections into ``(face_count, face_prominence)``.
+
+    ``faces`` is the ``detect`` output (``None`` or an ``N x 15`` array whose
+    first four columns are the box ``x, y, w, h``). ``face_count`` is the number
+    of faces; ``face_prominence`` is the largest face's box area as a fraction of
+    the frame in [0, 1] (how big / close the nearest face is). Both are 0 when no
+    face is found. Pure and model-free, so it is unit-tested without the model.
+    """
+    if faces is None or len(faces) == 0:
+        return 0.0, 0.0
+    area = float(frame_w * frame_h) + 1e-9
+    prominence = max((float(f[2]) * float(f[3])) / area for f in faces)
+    return float(len(faces)), float(min(1.0, max(0.0, prominence)))
+
+
+# --------------------------------------------------------------------------- #
 # Audio
 # --------------------------------------------------------------------------- #
 def pitch_from_spectrum(
@@ -216,3 +263,23 @@ def loudness_attack(rms: float, prev_rms: float | None) -> float:
     level = 20.0 * np.log10(rms + 1e-6)
     prev_level = 20.0 * np.log10(prev_rms + 1e-6)
     return float(max(0.0, level - prev_level))
+
+
+def voice_band_ratio(
+    mag: np.ndarray, freqs: np.ndarray, lo: float = 300.0, hi: float = 3400.0
+) -> float:
+    """Fraction of spectral energy in the speech band (default 300-3400 Hz), in [0, 1].
+
+    A cheap speech-presence proxy: human speech concentrates energy in the
+    telephone band, so a high ratio flags likely voice. Reuses the magnitude
+    spectrum already computed for the centroid/flux. Honest limits: it is a
+    band-energy statistic, not a trained voice-activity detector, so band-heavy
+    music also scores high; a real VAD (Silero / webrtcvad) is the upgrade.
+    Returns 0.0 on silence (all-zero spectrum).
+    """
+    p = mag.astype(np.float64) ** 2
+    total = float(p.sum())
+    if total < 1e-12:
+        return 0.0
+    band = float(p[(freqs >= lo) & (freqs <= hi)].sum())
+    return float(min(1.0, max(0.0, band / total)))

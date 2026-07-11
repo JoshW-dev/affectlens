@@ -12,16 +12,21 @@ All notable changes to this project are documented here. The format is based on
 - Low-level audio features: RMS loudness, zero-crossing rate, spectral centroid,
   spectral flux.
 - Mid-level perceptual features (`midlevel.py`), each mapping onto a named brain
-  system and computed inside the existing decode passes (no extra dependency):
-  - optical-flow motion — `flow_magnitude` (energy, MT/V5), `flow_looming`
-    (approach/recede, MSTd), `flow_coherence` (global self-motion vs local object
-    motion, MST/CSv); gated by `ExtractionConfig.optical_flow`;
-  - `scene_cut` — shot-boundary score (hippocampal event segmentation);
-  - `spatial_detail` — high-spatial-frequency energy (V1 spatial-frequency channels);
-  - `chroma_rg`, `chroma_by` — signed cone-opponent colour axes (V4/VO);
-  - `pitch_f0`, `voicing` — fundamental frequency and periodicity (Heschl's gyrus);
-  - `spectral_flatness` — tonal vs. noisy texture (non-primary auditory cortex);
-  - `loudness_attack` — rectified loudness rise (brainstem acoustic-startle arc).
+  system and computed inside the existing decode passes:
+  - optical-flow motion: `flow_magnitude` (energy, MT/V5), `flow_looming`
+    (approach/recede, MSTd), `flow_coherence` (global self-motion vs. local
+    object motion, MST/CSv); gated by `ExtractionConfig.optical_flow`;
+  - `scene_cut`: shot-boundary score (hippocampal event segmentation);
+  - `spatial_detail`: high-spatial-frequency energy (V1 spatial-frequency channels);
+  - `chroma_rg`, `chroma_by`: signed cone-opponent colour axes (V4/VO);
+  - `face_count`, `face_prominence`: face detection via a bundled YuNet model
+    through OpenCV's DNN (no extra pip dependency), gated by
+    `ExtractionConfig.detect_faces` (FFA/OFA/STS);
+  - `pitch_f0`, `voicing`: fundamental frequency and periodicity (Heschl's gyrus);
+  - `spectral_flatness`: tonal vs. noisy texture (non-primary auditory cortex);
+  - `loudness_attack`: rectified loudness rise (brainstem acoustic-startle arc);
+  - `voice_band_ratio`: speech-band energy fraction, a voice-presence proxy
+    (temporal voice areas / STG).
   `midlevel.py` documents a roadmap of further extractors mapped to their brain
   systems; the README carries the full tier table with references.
 - High-level semantic features from dialogue, with swappable transcriber and

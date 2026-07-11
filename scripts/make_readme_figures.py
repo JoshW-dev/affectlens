@@ -11,9 +11,10 @@ Then:
 
     python scripts/make_readme_figures.py
 
-Figure 1 (features.png): real frames from Elephants Dream above four
-higher-level feature time courses (motion energy, scene cuts, colour warmth,
-sound onsets), each labelled with the brain system it probes — the hero.
+Figure 1 (features.png): real frames from Elephants Dream above five
+higher-level feature time courses (motion energy, faces on screen, scene cuts,
+colour warmth, and voice/speech), each labelled with the brain system it
+probes. The hero image.
 
 Figure 2 (encoding.png): the `encode` workflow on a demo signal fabricated
 from the clip's own loudness delayed by one bin, showing the lag scan
@@ -25,8 +26,8 @@ warmth, spectral flatness, and pitch F0 shaded by voicing), each labelled
 with the brain system it is meant to probe.
 
 Figure 4 (feature_matrix.png): every base feature over the clip as one
-z-scored design matrix (a heatmap of 21 features x time), grouped by tier —
-the whole feature space `extract` produces, at a glance.
+z-scored design matrix (a heatmap of 24 features x time), grouped by tier.
+The whole feature space `extract` produces, at a glance.
 
 Elephants Dream is (c) 2006 Blender Foundation / Netherlands Media Art
 Institute, CC-BY-2.5 — the README credits it alongside the figures.
@@ -68,16 +69,17 @@ def make_features_figure(X: pd.DataFrame) -> None:
     cap.release()
 
     # Higher-level features that visibly track the frames above: real motion
-    # energy, shot boundaries, colour warmth, and sound onsets — each labelled
-    # with the brain system it is meant to probe (see the mid-level tier).
+    # energy, faces on screen, shot boundaries, colour warmth, and voice/speech,
+    # each labelled with the brain system it is meant to probe.
     curves = [
         ("visual__flow_magnitude_mean", "motion energy\n(MT / V5)", "#c0504d"),
+        ("visual__face_prominence_max", "faces on screen\n(FFA / OFA)", "#7030a0"),
         ("visual__scene_cut_max", "scene cuts\n(hippocampus)", "#4472c4"),
         ("visual__chroma_by_mean", "colour warmth\n(V4 / VO)", "#c9820a"),
-        ("audio__loudness_attack_mean", "sound onsets\n(startle)", "#2e8b7f"),
+        ("audio__voice_band_ratio_mean", "voice / speech\n(temporal voice areas)", "#2e8b7f"),
     ]
 
-    fig = plt.figure(figsize=(12, 7.4))
+    fig = plt.figure(figsize=(12, 8.6))
     gs = fig.add_gridspec(
         len(curves) + 1, len(frames),
         height_ratios=[1.9] + [1] * len(curves), hspace=0.35, wspace=0.04,
@@ -108,7 +110,7 @@ def make_features_figure(X: pd.DataFrame) -> None:
             ax.tick_params(labelsize=8, colors="0.35")
 
     fig.suptitle(
-        "affectlens extract — one 11-minute clip in, aligned feature time courses out",
+        "affectlens extract: one 11-minute clip in, aligned feature time courses out",
         fontsize=11, y=0.98,
     )
     fig.savefig(OUT_DIR / "features.png", dpi=150, bbox_inches="tight", facecolor="white")
@@ -160,7 +162,7 @@ def make_encoding_figure(X: pd.DataFrame) -> None:
         ax2.spines[spine].set_visible(False)
     ax2.set_title(f"…and the lag scan finds it (lag={lags[best]})", fontsize=10, color="0.25", loc="left")
 
-    fig.suptitle("affectlens encode — which features the model leans on, and at what delay", fontsize=11)
+    fig.suptitle("affectlens encode: which features the model leans on, and at what delay", fontsize=11)
     fig.tight_layout()
     fig.savefig(OUT_DIR / "encoding.png", dpi=150, bbox_inches="tight", facecolor="white")
     plt.close(fig)
@@ -194,7 +196,7 @@ def make_midlevel_figure(X: pd.DataFrame) -> None:
     fig.colorbar(sc, ax=axes[5], label="voicing", pad=0.01, fraction=0.05)
 
     axes[0].set_title(
-        "affectlens mid-level tier — perceptual primitives over an 11-minute film, "
+        "affectlens mid-level tier: perceptual primitives over an 11-minute film, "
         "each mapped to a named brain system",
         loc="left", fontsize=11,
     )
@@ -224,8 +226,10 @@ MATRIX_GROUPS = [
         ("visual__flow_coherence_mean", "flow coherence"),
         ("visual__scene_cut_max", "scene cut"),
         ("visual__spatial_detail_mean", "spatial detail"),
-        ("visual__chroma_rg_mean", "chroma R–G"),
-        ("visual__chroma_by_mean", "chroma B–Y"),
+        ("visual__chroma_rg_mean", "chroma R-G"),
+        ("visual__chroma_by_mean", "chroma B-Y"),
+        ("visual__face_count_mean", "face count"),
+        ("visual__face_prominence_mean", "face prominence"),
     ]),
     ("Audio · low-level", [
         ("audio__rms_mean", "RMS loudness"),
@@ -238,6 +242,7 @@ MATRIX_GROUPS = [
         ("audio__voicing_mean", "voicing"),
         ("audio__spectral_flatness_mean", "spectral flatness"),
         ("audio__loudness_attack_mean", "loudness attack"),
+        ("audio__voice_band_ratio_mean", "voice-band energy"),
     ]),
 ]
 
@@ -274,7 +279,7 @@ def make_feature_matrix_figure(X: pd.DataFrame) -> None:
     cbar.set_label("z-scored value (per feature)", fontsize=8, color="0.3")
     cbar.ax.tick_params(labelsize=7, colors="0.4")
     fig.suptitle(
-        "affectlens feature matrix — all 21 features (visual + audio, low- and "
+        "affectlens feature matrix: all 24 features (visual + audio, low- and "
         "mid-level) over an 11-minute film",
         fontsize=11.5, x=0.5, y=0.94,
     )

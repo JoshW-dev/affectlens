@@ -44,6 +44,8 @@ FEATURE_HELP = {
     "spatial_detail": "Fine-detail energy (variance of the Laplacian) — high for crisp frames, low under blur/defocus.",
     "chroma_rg": "Red-vs-green colour balance (signed) — which way the palette leans, not how vivid.",
     "chroma_by": "Blue-vs-yellow colour balance (signed) — positive = warm, negative = cool.",
+    "face_count": "Number of faces detected in the frame (YuNet).",
+    "face_prominence": "Size of the largest face as a fraction of the frame (0-1), i.e. how close a face is.",
     "rms": "Loudness (root-mean-square amplitude).",
     "zcr": "Zero-crossing rate — noisiness / high-frequency content (speech vs. tone).",
     "spectral_centroid": "Spectral 'brightness' — where the sound energy sits in frequency.",
@@ -52,6 +54,7 @@ FEATURE_HELP = {
     "pitch_f0": "Fundamental frequency (pitch) of the audio, in Hz (0 when unvoiced).",
     "voicing": "Periodicity strength (0-1) — how voiced/tonal the sound is.",
     "loudness_attack": "Rise in loudness (dB) between windows — fires on hits/onsets, silent on decays.",
+    "voice_band_ratio": "Fraction of sound energy in the 300-3400 Hz speech band (0-1), a speech-presence proxy.",
     "semantic": "Embedding of the dialogue text in a window (meaning, not pixels).",
 }
 _AGG = {"mean": "average over the bin", "std": "variation within the bin",
@@ -122,11 +125,12 @@ with st.sidebar:
         "Visual", value=True,
         help="low-level: luminance, contrast, colorfulness, saturation, edge density, "
              "motion. mid-level: optical-flow magnitude/looming/coherence, scene cuts, "
-             "spatial detail, colour opponency.")
+             "spatial detail, colour opponency, faces.")
     use_audio = st.checkbox(
         "Audio", value=True,
         help="low-level: loudness (RMS), zero-crossing rate, spectral centroid, spectral "
-             "flux. mid-level: pitch + voicing, spectral flatness, loudness attack.")
+             "flux. mid-level: pitch + voicing, spectral flatness, loudness attack, "
+             "voice-band energy.")
     use_semantic = st.checkbox(
         "Semantic", value=False,
         help="Embeddings of dialogue text — needs a .srt/.vtt subtitle sidecar "

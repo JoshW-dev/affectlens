@@ -63,6 +63,10 @@ affectlens = "affectlens.cli:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+# Bundle the YuNet face-detection model (see src/affectlens/models/NOTICE).
+affectlens = ["models/*.onnx", "models/NOTICE"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]

@@ -38,9 +38,13 @@ class ExtractionConfig:
     visual: bool = True
     audio: bool = True
     # Mid-level optical-flow features (Farneback: magnitude, looming, coherence).
-    # The other mid-level features (scene cuts, spatial detail, colour opponency;
-    # pitch, spectral flatness, loudness attack) ride existing passes and are
-    # always on; dense flow is the one that adds real compute, so it gets a switch.
+    # The pure-numpy mid-level features (scene cuts, spatial detail, colour
+    # opponency; pitch, spectral flatness, loudness attack, voice-band energy)
+    # ride existing passes and are always on; dense flow adds real compute, so it
+    # gets a switch.
     optical_flow: bool = True
+    # Face detection (bundled YuNet model via OpenCV DNN): face_count and
+    # face_prominence. Runs a real model per frame, so it gets its own switch.
+    detect_faces: bool = True
     # Aggregation statistics applied within each rating bin.
     bin_aggregations: tuple[str, ...] = field(default_factory=lambda: ("mean", "std", "max"))

@@ -1,0 +1,15 @@
+face_detection_yunet.onnx
+=========================
+
+Bundled third-party model, used by the optional face-detection feature
+(affectlens.midlevel.load_face_detector via cv2.FaceDetectorYN).
+
+  Model:   YuNet (face_detection_yunet_2023mar)
+  Author:  Shiqi Yu and Wei Wu
+  Source:  OpenCV Zoo, https://github.com/opencv/opencv_zoo
+  License: MIT
+
+YuNet is a light-weight, fast and accurate face detection model. It is
+redistributed here under the MIT License; the affectlens code that calls it is
+under affectlens's own MIT License. This file exists so the attribution ships
+with the model in both the source tree and the built wheel.

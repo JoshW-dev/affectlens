@@ -202,6 +202,36 @@ def test_midlevel_flatness_and_attack():
     assert midlevel.loudness_attack(0.05, 0.5) == 0.0  # falling -> rectified to 0
 
 
+def test_midlevel_voice_band_ratio():
+    from affectlens import midlevel
+
+    sr, frame = 16000, int(0.05 * 16000)
+    freqs = np.fft.rfftfreq(frame, d=1.0 / sr)
+    t = np.arange(frame) / sr
+    speech = np.sin(2 * np.pi * 1000 * t) * np.hanning(frame)  # in 300-3400 Hz band
+    rumble = np.sin(2 * np.pi * 60 * t) * np.hanning(frame)    # below the band
+    r_speech = midlevel.voice_band_ratio(np.abs(np.fft.rfft(speech)), freqs)
+    r_rumble = midlevel.voice_band_ratio(np.abs(np.fft.rfft(rumble)), freqs)
+    assert r_speech > 0.8  # nearly all energy in the speech band
+    assert r_speech > r_rumble
+    assert 0.0 <= r_rumble <= 1.0
+    assert midlevel.voice_band_ratio(np.zeros(frame // 2 + 1), freqs) == 0.0  # silence
+
+
+def test_midlevel_face_features_summary():
+    from affectlens import midlevel
+
+    # Pure summariser, no model needed: YuNet detect() returns None or Nx15
+    # boxes (x, y, w, h, ...). Count and largest-box-area fraction.
+    assert midlevel.face_features(None, 100, 100) == (0.0, 0.0)
+    assert midlevel.face_features(np.zeros((0, 15)), 100, 100) == (0.0, 0.0)
+    boxes = np.array([[10, 10, 20, 20] + [0.0] * 11, [0, 0, 50, 40] + [0.0] * 11])
+    count, prom = midlevel.face_features(boxes, 100, 100)
+    assert count == 2.0
+    assert abs(prom - (50 * 40) / (100 * 100)) < 1e-9  # largest box area fraction
+    assert 0.0 <= prom <= 1.0
+
+
 def test_hashing_embedder_no_nan_on_cancelling_tokens():
     from affectlens.highlevel import HashingEmbedder
 
