@@ -18,6 +18,7 @@ extra; face detection additionally runs a small bundled model and is gated by
 from __future__ import annotations
 
 import subprocess
+import warnings
 import wave
 from pathlib import Path
 
@@ -28,6 +29,10 @@ import pandas as pd
 
 from . import midlevel
 from .config import ExtractionConfig
+
+# Fraction of a container's declared frames OpenCV must actually decode before we
+# trust the decode; below this, ``extract_visual`` retries with ffmpeg.
+_DECODE_SHORTFALL = 0.98
 
 
 # --------------------------------------------------------------------------- #
@@ -43,41 +48,69 @@ def _colorfulness(bgr: np.ndarray) -> float:
     return float(std + 0.3 * mean)
 
 
-def extract_visual(path: str | Path, config: ExtractionConfig | None = None) -> pd.DataFrame:
-    """Per-sampled-frame visual features.
-
-    Low-level columns: t, luminance, contrast, colorfulness, saturation,
-    edge_density, motion (mean absolute inter-frame difference of luminance).
-    Mid-level columns (see ``midlevel.py``): flow_magnitude, flow_looming, and
-    flow_coherence (dense optical flow; only when ``config.optical_flow``),
-    scene_cut (shot-boundary score), spatial_detail (high-spatial-frequency
-    energy), chroma_rg / chroma_by (signed cone-opponent colour axes), and
-    face_count / face_prominence (YuNet; only when ``config.detect_faces`` and the
-    bundled model is available).
-    """
-    config = config or ExtractionConfig()
+def _video_meta(path: str | Path) -> tuple[float, int]:
+    """Native frame rate and the container's declared frame count."""
     cap = cv2.VideoCapture(str(path))
     if not cap.isOpened():
         raise RuntimeError(f"could not open video: {path}")
+    fps = cap.get(cv2.CAP_PROP_FPS) or 0.0
+    declared = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
+    cap.release()
+    return fps, max(0, declared)
 
-    native_fps = cap.get(cv2.CAP_PROP_FPS) or 0.0
-    sample_fps = config.visual_sample_fps or native_fps or 8.0
-    frame_step = max(1, int(round(native_fps / sample_fps))) if native_fps else 1
 
-    # One face detector for the whole clip (None if disabled or model missing).
-    face_det = midlevel.load_face_detector() if config.detect_faces else None
+def _iter_frames_cv2(path: str | Path):
+    """Yield BGR frames via OpenCV, the fast path for well-formed containers."""
+    cap = cv2.VideoCapture(str(path))
+    if not cap.isOpened():
+        raise RuntimeError(f"could not open video: {path}")
+    try:
+        while True:
+            ok, frame = cap.read()
+            if not ok:
+                break
+            yield frame
+    finally:
+        cap.release()
 
+
+def _iter_frames_ffmpeg(path: str | Path):
+    """Yield BGR frames via the bundled ffmpeg.
+
+    The fallback decoder: ffmpeg reads containers whole that OpenCV abandons
+    partway (see ``extract_visual``), at the cost of a slower pipe.
+    """
+    reader = imageio_ffmpeg.read_frames(str(path), pix_fmt="bgr24")
+    try:
+        meta = next(reader)  # first yield is metadata, not a frame
+        width, height = meta["size"]
+        for buf in reader:
+            yield np.frombuffer(buf, dtype=np.uint8).reshape(height, width, 3)
+    finally:
+        reader.close()  # tear down the ffmpeg subprocess and its pipes
+
+
+def _visual_rows(
+    frames,
+    native_fps: float,
+    sample_fps: float,
+    frame_step: int,
+    config: ExtractionConfig,
+    face_det,
+) -> tuple[list[dict], int]:
+    """Compute per-sampled-frame features over a frame iterator.
+
+    Returns the feature rows and how many frames the decoder actually yielded,
+    which ``extract_visual`` uses to spot a decode that stopped early.
+    """
     rows: list[dict] = []
     prev_gray: np.ndarray | None = None
     prev_gray_u8: np.ndarray | None = None
     prev_small: np.ndarray | None = None
-    idx = 0
-    while True:
-        ok, frame = cap.read()
-        if not ok:
-            break
+    n_decoded = 0
+    for idx, frame in enumerate(frames):
+        n_decoded += 1
         if idx % frame_step != 0:
-            idx += 1
             continue
         t = idx / native_fps if native_fps else idx / sample_fps
         gray_u8 = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -130,8 +163,65 @@ def extract_visual(path: str | Path, config: ExtractionConfig | None = None) -> 
             }
         )
         prev_gray, prev_gray_u8, prev_small = gray, gray_u8, small
-        idx += 1
-    cap.release()
+    return rows, n_decoded
+
+
+def extract_visual(path: str | Path, config: ExtractionConfig | None = None) -> pd.DataFrame:
+    """Per-sampled-frame visual features.
+
+    Low-level columns: t, luminance, contrast, colorfulness, saturation,
+    edge_density, motion (mean absolute inter-frame difference of luminance).
+    Mid-level columns (see ``midlevel.py``): flow_magnitude, flow_looming, and
+    flow_coherence (dense optical flow; only when ``config.optical_flow``),
+    scene_cut (shot-boundary score), spatial_detail (high-spatial-frequency
+    energy), chroma_rg / chroma_by (signed cone-opponent colour axes), and
+    face_count / face_prominence (YuNet; only when ``config.detect_faces`` and the
+    bundled model is available).
+    """
+    config = config or ExtractionConfig()
+    native_fps, declared_frames = _video_meta(path)
+    sample_fps = config.visual_sample_fps or native_fps or 8.0
+    frame_step = max(1, int(round(native_fps / sample_fps))) if native_fps else 1
+
+    # One face detector for the whole clip (None if disabled or model missing).
+    face_det = midlevel.load_face_detector() if config.detect_faces else None
+
+    rows, n_decoded = _visual_rows(
+        _iter_frames_cv2(path), native_fps, sample_fps, frame_step, config, face_det
+    )
+
+    # Some containers (notably variable-rate AVIs) make OpenCV give up partway
+    # through with no error at all, which leaves the tail of the clip with no
+    # frames and, once binned, a block of NaN features. ffmpeg reads those files
+    # whole, so retry with it and keep whichever decode got further.
+    if declared_frames and n_decoded < declared_frames * _DECODE_SHORTFALL:
+        try:
+            alt_rows, alt_decoded = _visual_rows(
+                _iter_frames_ffmpeg(path), native_fps, sample_fps, frame_step, config, face_det
+            )
+        except Exception as exc:  # ffmpeg unavailable or refused the file
+            warnings.warn(
+                f"{Path(path).name}: OpenCV decoded {n_decoded} of {declared_frames} frames "
+                f"and the ffmpeg fallback failed ({exc}); features cover only part of the clip.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+        else:
+            if alt_decoded > n_decoded:
+                warnings.warn(
+                    f"{Path(path).name}: OpenCV decoded only {n_decoded} of {declared_frames} "
+                    f"frames; re-decoded with ffmpeg and recovered {alt_decoded}.",
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
+                rows, n_decoded = alt_rows, alt_decoded
+            else:
+                warnings.warn(
+                    f"{Path(path).name}: only {n_decoded} of {declared_frames} declared frames "
+                    "could be decoded by either backend; features may not span the whole clip.",
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
 
     if not rows:
         raise RuntimeError(f"no frames decoded from {path}")
