@@ -60,3 +60,10 @@ All notable changes to this project are documented here. The format is based on
   stream's true extent rather than the container-header duration. Some files
   (notably certain AVIs) report a bogus multi-hour duration from a malformed
   header, which previously produced a grid of thousands of empty bins.
+- `lowlevel.extract_visual` no longer loses the tail of a clip when OpenCV stops
+  decoding partway through. Some variable-rate AVIs make OpenCV give up early and
+  report no error, so the frames it did return covered only the front of the clip
+  and every later bin came out NaN while the audio features (decoded separately by
+  ffmpeg) looked fine. The decode is now checked against the container's declared
+  frame count, and a short read is retried with ffmpeg, which reads these files
+  whole. A `RuntimeWarning` reports the recovery instead of leaving it silent.

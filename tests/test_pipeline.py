@@ -12,7 +12,7 @@ import pandas as pd
 # Make the src-layout package importable without an install.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from affectlens import align, encoding, highlevel, ratings
+from affectlens import align, encoding, highlevel, lowlevel, ratings
 from affectlens.config import ExtractionConfig
 from affectlens.ratings import RatingSchema
 from affectlens.synthetic import build_synthetic_dataset
@@ -256,6 +256,45 @@ def test_extract_all_without_ratings():
         assert len(cf.X) >= 4
         assert any(c.startswith("visual__") for c in cf.X.columns)
         assert any(c.startswith("audio__") for c in cf.X.columns)
+
+
+def test_visual_decode_falls_back_when_opencv_truncates():
+    """A clip OpenCV abandons partway must not silently lose its tail.
+
+    Some variable-rate AVIs make OpenCV stop decoding early and report no error,
+    which used to leave the rest of the clip with no frames and a block of NaN
+    features once binned. Here the OpenCV path is truncated to half its frames,
+    so ``extract_visual`` should notice that it decoded fewer than the container
+    declares, re-decode with ffmpeg, and cover the whole clip again.
+    """
+    import warnings
+
+    with build_synthetic_dataset(n_clips=1) as (clips_dir, _ratings_csv):
+        clip = sorted(Path(clips_dir).glob("*.mp4"))[0]
+        full = lowlevel.extract_visual(clip)
+
+        real_iter = lowlevel._iter_frames_cv2
+
+        def truncated(path):
+            frames = list(real_iter(path))
+            return iter(frames[: len(frames) // 2])
+
+        lowlevel._iter_frames_cv2 = truncated
+        try:
+            with warnings.catch_warnings(record=True) as caught:
+                warnings.simplefilter("always")
+                recovered = lowlevel.extract_visual(clip)
+        finally:
+            lowlevel._iter_frames_cv2 = real_iter
+
+    # The tail is back: same coverage as an untruncated decode ...
+    assert len(recovered) == len(full)
+    assert recovered["t"].max() == full["t"].max()
+    assert not recovered.isna().any().any()
+    # ... and the recovery was announced rather than silently papered over.
+    assert any(
+        issubclass(w.category, RuntimeWarning) and "ffmpeg" in str(w.message) for w in caught
+    )
 
 
 if __name__ == "__main__":
